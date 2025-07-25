@@ -2,10 +2,10 @@
 
 use std::borrow::Cow;
 
-use wgpu_test::{gpu_test, GpuTestConfiguration, GpuTestInitializer, TestParameters};
+use wgpu_test::{GpuTestConfiguration, GpuTestInitializer, TestParameters, TestingContext};
 
 pub fn all_tests(vec: &mut Vec<GpuTestInitializer>) {
-    vec.push(BGRA8_UNORM_STORAGE);
+    vec.push(bgra8_unorm_storage);
 }
 
 const SHADER_SRC: &str = "
@@ -17,17 +17,31 @@ fn main(@builtin(workgroup_id) wgid: vec3<u32>) {
 }
 ";
 
-#[gpu_test]
-static BGRA8_UNORM_STORAGE: GpuTestConfiguration = GpuTestConfiguration::new()
-    .parameters(
-        TestParameters::default()
-            .limits(wgpu::Limits {
-                max_storage_textures_per_shader_stage: 1,
-                ..Default::default()
-            })
-            .features(wgpu::Features::BGRA8UNORM_STORAGE),
-    )
-    .run_async(|ctx| async move {
+macro_rules! gpu_tests {
+    ( $( #[gpu_test(config = $config:expr)] async fn $name:ident($ctx:ident: TestingContext) $body:block )* ) => {
+        $(
+            fn $name() -> GpuTestConfiguration {
+                $config
+                    .name(&format!("{}::{}", module_path!(), stringify!($name)))
+                    .run_async(|$ctx: TestingContext| async move $body)
+            }
+        )*
+    };
+}
+
+gpu_tests! {
+
+#[gpu_test(config = GpuTestConfiguration::new()
+        .parameters(
+            TestParameters::default()
+                .limits(wgpu::Limits {
+                    max_storage_textures_per_shader_stage: 1,
+                    ..Default::default()
+                })
+                .features(wgpu::Features::BGRA8UNORM_STORAGE),
+        )
+    )]
+    async fn bgra8_unorm_storage(ctx: TestingContext) {
         let device = &ctx.device;
         let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
             label: None,
@@ -160,4 +174,6 @@ static BGRA8_UNORM_STORAGE: GpuTestConfiguration = GpuTestConfiguration::new()
         }
 
         readback_buffer.unmap();
-    });
+    }
+
+}
