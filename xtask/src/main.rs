@@ -8,7 +8,6 @@ use pico_args::Arguments;
 
 mod changelog;
 mod cts;
-mod install_warp;
 mod miri;
 mod run_wasm;
 mod test;
@@ -70,14 +69,6 @@ Commands:
                             This is useful for testing changes to wasm-bindgen
         --version           String that can be passed to `git checkout` to checkout the wasm-bindgen repository.
 
-  install-warp
-    Download and install the WARP (D3D12 software implementation) DLL for D3D12 testing.
-
-    --target-dir <dir>    The target directory to install WARP into.
-    --profile <profile>   The cargo profile to install WARP for (default: debug)
-    
-    Note: Cannot specify both --target-dir and --profile
-
 Options:
   -h, --help  Print help
 ";
@@ -126,7 +117,6 @@ fn main() -> anyhow::Result<ExitCode> {
         Some("miri") => miri::run_miri(shell, args)?,
         Some("test") => test::run_tests(shell, args, passthrough_args)?,
         Some("vendor-web-sys") => vendor_web_sys::run_vendor_web_sys(shell, args)?,
-        Some("install-warp") => install_warp::run_install_warp(shell, args)?,
         Some(subcommand) => {
             bad_arguments!("Unknown subcommand: {}", subcommand)
         }
