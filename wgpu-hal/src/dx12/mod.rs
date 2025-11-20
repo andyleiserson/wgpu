@@ -598,7 +598,6 @@ enum MemoryArchitecture {
 #[derive(Debug, Clone, Copy)]
 struct PrivateCapabilities {
     instance_flags: wgt::InstanceFlags,
-    workarounds: Workarounds,
     #[allow(unused)]
     heterogeneous_resource_heaps: bool,
     memory_architecture: MemoryArchitecture,
@@ -620,11 +619,11 @@ impl PrivateCapabilities {
     }
 }
 
-#[derive(Default, Debug, Copy, Clone)]
+#[derive(Default)]
 struct Workarounds {
-    // On WARP 1.0.13+, debug information in shaders in certain situations causes the device
-    // to hang. https://github.com/gfx-rs/wgpu/issues/8368
-    avoid_shader_debug_info: bool,
+    // On WARP, temporary CPU descriptors are still used by the runtime
+    // after we call `CopyDescriptors`.
+    avoid_cpu_descriptor_overwrites: bool,
 }
 
 pub struct Adapter {
@@ -634,6 +633,9 @@ pub struct Adapter {
     dcomp_lib: Arc<DCompLib>,
     private_caps: PrivateCapabilities,
     presentation_timer: auxil::dxgi::time::PresentationTimer,
+    // Note: this isn't used right now, but we'll need it later.
+    #[allow(unused)]
+    workarounds: Workarounds,
     memory_budget_thresholds: wgt::MemoryBudgetThresholds,
     compiler_container: Arc<shader_compilation::CompilerContainer>,
     options: wgt::Dx12BackendOptions,
