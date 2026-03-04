@@ -437,8 +437,6 @@ pub enum GPUFeatureName {
   PartiallyBoundBindingArray,
   #[webidl(rename = "multi-draw-indirect-count")]
   MultiDrawIndirectCount,
-  #[webidl(rename = "immediate-data")]
-  ImmediateData,
   #[webidl(rename = "address-mode-clamp-to-zero")]
   AddressModeClampToZero,
   #[webidl(rename = "address-mode-clamp-to-border")]
@@ -509,7 +507,6 @@ pub fn feature_names_to_features(
       GPUFeatureName::UniformBufferBindingArrays => Features::UNIFORM_BUFFER_BINDING_ARRAYS,
       GPUFeatureName::PartiallyBoundBindingArray => Features::PARTIALLY_BOUND_BINDING_ARRAY,
       GPUFeatureName::MultiDrawIndirectCount => Features::MULTI_DRAW_INDIRECT_COUNT,
-      GPUFeatureName::ImmediateData => Features::IMMEDIATES,
       GPUFeatureName::AddressModeClampToZero => Features::ADDRESS_MODE_CLAMP_TO_ZERO,
       GPUFeatureName::AddressModeClampToBorder => Features::ADDRESS_MODE_CLAMP_TO_BORDER,
       GPUFeatureName::PolygonModeLine => Features::POLYGON_MODE_LINE,
@@ -642,9 +639,6 @@ pub fn features_to_feature_names(
   }
   if features.contains(wgpu_types::Features::MULTI_DRAW_INDIRECT_COUNT) {
     return_features.insert(MultiDrawIndirectCount);
-  }
-  if features.contains(wgpu_types::Features::IMMEDIATES) {
-    return_features.insert(ImmediateData);
   }
   if features.contains(wgpu_types::Features::ADDRESS_MODE_CLAMP_TO_ZERO) {
     return_features.insert(AddressModeClampToZero);
