@@ -34,7 +34,7 @@ use anyhow::{anyhow, bail, Context};
 use core::fmt;
 use pico_args::Arguments;
 use regex_lite::{Regex, RegexBuilder};
-use std::{ffi::OsString, sync::LazyLock};
+use std::{ffi::OsString, sync::LazyLock, time::Instant};
 use xshell::Shell;
 
 use crate::util::{git_version_at_least, parse_binary_from_cargo_json};
@@ -391,6 +391,7 @@ pub fn run_cts(
     }
 
     log::info!("Running CTS");
+    let run_start = Instant::now();
     for test in &tests {
         if let Some(running_on_backend) = &running_on_backend {
             if test.fails_if.contains(running_on_backend) {
@@ -407,6 +408,7 @@ pub fn run_cts(
             log::info!("Running {}", test.selector.to_string_lossy());
         }
 
+        let test_start = Instant::now();
         let cmd = shell
             .cmd(&bin)
             .envs(env_vars.clone())
@@ -438,6 +440,14 @@ pub fn run_cts(
                 cmd.run().context("CTS failed")?;
             }
         }
+
+        let test_elapsed = test_start.elapsed();
+        let total_elapsed = run_start.elapsed();
+        log::info!(
+            "Test took {}s, total elapsed {}s",
+            test_elapsed.as_secs(),
+            total_elapsed.as_secs(),
+        );
     }
 
     if tests.len() > 1 {
