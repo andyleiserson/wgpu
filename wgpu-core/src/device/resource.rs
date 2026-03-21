@@ -17,8 +17,7 @@ use arrayvec::ArrayVec;
 use bitflags::Flags;
 use smallvec::SmallVec;
 use wgt::{
-    math::align_to, DeviceLostReason, TextureFormat, TextureSampleType, TextureSelector,
-    TextureViewDimension,
+    DeviceLostReason, InstanceFlags, TextureFormat, TextureSampleType, TextureSelector, TextureViewDimension, math::align_to
 };
 
 #[cfg(feature = "trace")]
@@ -347,6 +346,33 @@ impl Device {
             Ok(())
         } else {
             Err(MissingFeatures(feature))
+        }
+    }
+
+    /// Require a feature, with modified error reporting suitable for applications that
+    /// intend to use only WebGPU-specified features.
+    ///
+    /// If [`InstanceFlags::SUPPRESS_WGPU_EXTENSION_DIAGNOSTICS`] is not active, this
+    /// functions the same as `require_features`. If extension diagnostic suppression is
+    /// active, then instead of returning a [`MissingFeatures`] error, this function calls
+    /// the `alternate` closure to obtain the error.
+    ///
+    /// It is not necessary to use this in all cases where checking for a wgpu extension. It
+    /// is desirable to use this version for cases like `create_buffer` with `usage`
+    /// containing `BufferUses::TLAS_INPUT` that can be reached entirely through
+    /// WebGPU-standard APIs. For cases like non-standard texture formats or APIs like
+    /// `create_tlas` that don't exist in WebGPU at all, using `require_features` is fine.
+    pub(crate) fn require_wgpu_features<E: From<MissingFeatures>>(
+        &self,
+        feature: wgt::Features,
+        alternate: impl FnOnce() -> E,
+    ) -> Result<(), E> {
+        if self.features.contains(feature) {
+            Ok(())
+        } else if self.instance_flags.contains(InstanceFlags::SUPPRESS_WGPU_EXTENSION_DIAGNOSTICS) {
+            Err(alternate())
+        } else {
+            Err(MissingFeatures(feature).into())
         }
     }
 
@@ -1018,7 +1044,10 @@ impl Device {
             .usage
             .intersects(wgt::BufferUsages::BLAS_INPUT | wgt::BufferUsages::TLAS_INPUT)
         {
-            self.require_features(wgt::Features::EXPERIMENTAL_RAY_QUERY)?;
+            self.require_wgpu_features(
+                wgt::Features::EXPERIMENTAL_RAY_QUERY,
+                || resource::CreateBufferError::InvalidUsage(desc.usage),
+            )?;
         }
 
         if desc.usage.contains(wgt::BufferUsages::INDEX)
