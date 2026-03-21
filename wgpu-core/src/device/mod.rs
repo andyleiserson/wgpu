@@ -360,9 +360,12 @@ impl DeviceError {
 
 #[derive(Clone, Debug, Error)]
 #[error(
-    "{features:?} {is} {msg}",
-    is=if .features.bits().count_ones() == 1 { "is" } else { "are" },
-    msg=if *.have_extensions { "required but not enabled on the device" } else { "not supported" }
+    "{features:?} are {msg}",
+    msg=if *(.have_extensions) || .features.features_wgpu.is_empty() {
+        "required but not enabled on the device"
+    } else {
+        "not supported"
+    }
 )]
 pub struct MissingFeatures {
     pub features: wgt::Features,
@@ -376,10 +379,7 @@ impl WebGpuError for MissingFeatures {
 }
 
 #[derive(Clone, Debug, Error)]
-#[error(
-    "{0:?} {is} required but not supported on the device.\n{DOWNLEVEL_ERROR_MESSAGE}",
-    is=if .0.bits().count_ones() == 1 { "is" } else { "are" },
-)]
+#[error("{0:?} are required but not supported on the device.\n{DOWNLEVEL_ERROR_MESSAGE}")]
 pub struct MissingDownlevelFlags(pub wgt::DownlevelFlags);
 
 impl WebGpuError for MissingDownlevelFlags {
