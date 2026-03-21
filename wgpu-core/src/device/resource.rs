@@ -1596,18 +1596,25 @@ impl Device {
                 .flags
                 .sample_count_supported(desc.sample_count)
             {
-                return Err(CreateTextureError::InvalidSampleCount(
-                    desc.sample_count,
-                    desc.format,
-                    desc.format
-                        .guaranteed_format_features(self.features)
-                        .flags
-                        .supported_sample_counts(),
-                    self.adapter
-                        .get_texture_format_features(desc.format)
-                        .flags
-                        .supported_sample_counts(),
-                ));
+                if self.instance_flags.contains(wgt::InstanceFlags::SUPPRESS_WGPU_EXTENSION_DIAGNOSTICS) {
+                    return Err(CreateTextureError::InvalidSampleCount(
+                        desc.sample_count,
+                        desc.format,
+                    ));
+                } else {
+                    return Err(CreateTextureError::InvalidSampleCountWgpu(
+                        desc.sample_count,
+                        desc.format,
+                        desc.format
+                            .guaranteed_format_features(self.features)
+                            .flags
+                            .supported_sample_counts(),
+                        self.adapter
+                            .get_texture_format_features(desc.format)
+                            .flags
+                            .supported_sample_counts(),
+                    ));
+                }
             };
         }
 
@@ -4391,7 +4398,7 @@ impl Device {
                         .flags
                         .sample_count_supported(desc.multisample.count)
                 {
-                    break 'error Some(pipeline::DepthStencilStateError::InvalidSampleCount(
+                    break 'error Some(pipeline::DepthStencilStateError::InvalidSampleCountWgpu(
                         desc.multisample.count,
                         ds.format,
                         ds.format
