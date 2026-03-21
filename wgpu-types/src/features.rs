@@ -322,6 +322,13 @@ macro_rules! bitflags_array {
             const ALL: Self = $name::all().bits();
         }
 
+        impl FeatureBits {
+            /// Returns the number of bits that are set in `self`.
+            pub fn count_ones(&self) -> u32 {
+                self.0.iter().map(|bits| bits.count_ones()).sum()
+            }
+        }
+
         impl Flags for $name {
             const FLAGS: &'static [bitflags::Flag<Self>] = $name::FLAGS;
 

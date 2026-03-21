@@ -17,7 +17,7 @@ use arrayvec::ArrayVec;
 use bitflags::Flags;
 use smallvec::SmallVec;
 use wgt::{
-    DeviceLostReason, InstanceFlags, TextureFormat, TextureSampleType, TextureSelector, TextureViewDimension, math::align_to
+    DeviceLostReason, TextureFormat, TextureSampleType, TextureSelector, TextureViewDimension, math::align_to
 };
 
 #[cfg(feature = "trace")]
@@ -345,16 +345,17 @@ impl Device {
         if self.features.contains(feature) {
             Ok(())
         } else {
-            Err(MissingFeatures(feature))
+            let have_extensions = self.instance_flags.contains(wgt::InstanceFlags::SUPPRESS_WGPU_EXTENSION_DIAGNOSTICS);
+            Err(MissingFeatures { features: feature, have_extensions })
         }
     }
 
-    /// Require a feature, with modified error reporting suitable for applications that
-    /// intend to use only WebGPU-specified features.
+    /// Require a feature, but return an alternate error in applications that intend to use
+    /// only WebGPU-specified features.
     ///
     /// If [`InstanceFlags::SUPPRESS_WGPU_EXTENSION_DIAGNOSTICS`] is not active, this
     /// functions the same as `require_features`. If extension diagnostic suppression is
-    /// active, then instead of returning a [`MissingFeatures`] error, this function calls
+    /// enabled, then instead of returning a [`MissingFeatures`] error, this function calls
     /// the `alternate` closure to obtain the error.
     ///
     /// It is not necessary to use this in all cases where checking for a wgpu extension. It
@@ -369,10 +370,10 @@ impl Device {
     ) -> Result<(), E> {
         if self.features.contains(feature) {
             Ok(())
-        } else if self.instance_flags.contains(InstanceFlags::SUPPRESS_WGPU_EXTENSION_DIAGNOSTICS) {
+        } else if self.instance_flags.contains(wgt::InstanceFlags::SUPPRESS_WGPU_EXTENSION_DIAGNOSTICS) {
             Err(alternate())
         } else {
-            Err(MissingFeatures(feature).into())
+            Err(MissingFeatures { features: feature, have_extensions: true }.into())
         }
     }
 
