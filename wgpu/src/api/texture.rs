@@ -1,6 +1,8 @@
 #[cfg(wgpu_core)]
 use core::ops::Deref;
 
+use smallvec::SmallVec;
+
 use crate::*;
 
 /// Handle to a texture on the GPU.
@@ -11,7 +13,10 @@ use crate::*;
 #[derive(Debug, Clone)]
 pub struct Texture {
     pub(crate) inner: dispatch::DispatchTexture,
-    pub(crate) descriptor: TextureDescriptor<'static>,
+
+    /// The descriptor that was used to create this texture.
+    /// The label is not saved and will always be `None` in this copy.
+    pub(crate) descriptor: wgt::TextureDescriptor<Label<'static>, SmallVec<[TextureFormat; 1]>>,
 }
 #[cfg(send_sync)]
 static_assertions::assert_impl_all!(Texture: Send, Sync);
@@ -77,11 +82,7 @@ impl Texture {
     ) -> Self {
         Self {
             inner: dispatch::DispatchTexture::custom(texture),
-            descriptor: TextureDescriptor {
-                label: None,
-                view_formats: &[],
-                ..desc.clone()
-            },
+            descriptor: desc.map_label_and_view_formats(|_| None, |v| SmallVec::from_slice(v)),
         }
     }
 

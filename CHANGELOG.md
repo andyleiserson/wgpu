@@ -180,6 +180,7 @@ By @beholdnec in [#8505](https://github.com/gfx-rs/wgpu/pull/8505).
   - Added new `InvalidWorkgroupSizeError`, which is now used by `DrawError::InvalidGroupSize` and `StageError::InvalidWorkgroupSize`.
   - Added `BuildAccelerationStructureError` variant `OffsetLimitedTo4GB` and changed `IndirectBufferOverrun` to contain offset and size rather than start and end offsets.
   - `IndexFormat::byte_size` now returns `u32` instead of `usize`.
+- `create_texture` now takes a descriptor with `view_formats` having the parameterized type `V: AsRef<[TextureFormat]>`.
 
 #### Validation
 

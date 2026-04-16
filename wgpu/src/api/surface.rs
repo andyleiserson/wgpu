@@ -4,6 +4,7 @@ use core::ops::Deref;
 use core::{error, fmt};
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
+use smallvec::SmallVec;
 
 use crate::util::Mutex;
 use crate::*;
@@ -154,7 +155,8 @@ impl Surface<'_> {
                 let surface_texture = SurfaceTexture {
                     texture: Texture {
                         inner: texture,
-                        descriptor,
+                        descriptor: descriptor
+                            .map_label_and_view_formats(|_| None, |v| SmallVec::from_slice(v)),
                     },
                     presented: false,
                     detail,

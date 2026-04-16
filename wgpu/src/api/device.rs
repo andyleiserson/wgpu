@@ -3,6 +3,8 @@ use alloc::{boxed::Box, string::String, sync::Arc, vec};
 use core::ops::Deref;
 use core::{error, fmt, future::Future, marker::PhantomData};
 
+use smallvec::SmallVec;
+
 use crate::api::blas::{Blas, BlasGeometrySizeDescriptors, CreateBlasDescriptor};
 use crate::api::tlas::{CreateTlasDescriptor, Tlas};
 use crate::util::Mutex;
@@ -291,16 +293,17 @@ impl Device {
     ///
     /// `desc` specifies the general format of the texture.
     #[must_use]
-    pub fn create_texture(&self, desc: &TextureDescriptor<'_>) -> Texture {
-        let texture = self.inner.create_texture(desc);
+    pub fn create_texture<V>(&self, desc: &wgt::TextureDescriptor<Label<'_>, V>) -> Texture
+    where
+        V: AsRef<[TextureFormat]>,
+    {
+        let descriptor = desc.map_label_and_view_formats(Option::clone, |v| v.as_ref());
+        let texture = self.inner.create_texture(&descriptor);
 
         Texture {
             inner: texture,
-            descriptor: TextureDescriptor {
-                label: None,
-                view_formats: &[],
-                ..desc.clone()
-            },
+            descriptor: descriptor
+                .map_label_and_view_formats(|_| None, |v| SmallVec::from_slice(v)),
         }
     }
 
@@ -353,11 +356,7 @@ impl Device {
         };
         Texture {
             inner: texture.into(),
-            descriptor: TextureDescriptor {
-                label: None,
-                view_formats: &[],
-                ..desc.clone()
-            },
+            descriptor: desc.map_label_and_view_formats(|_| None, |v| SmallVec::from_slice(v)),
         }
     }
 
