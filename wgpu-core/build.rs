@@ -1,4 +1,9 @@
 fn main() {
+    println!("cargo::rerun-if-env-changed=WGPU_EXTRA_VALIDATION");
+    println!("cargo::rustc-check-cfg=cfg(wgpu_extra_validation)");
+    if std::env::var("WGPU_EXTRA_VALIDATION").is_ok() {
+        println!("cargo::rustc-cfg=wgpu_extra_validation");
+    }
     cfg_aliases::cfg_aliases! {
         windows_linux_android: { any(windows, target_os = "linux", target_os = "android", target_os = "freebsd") },
         send_sync: { all(

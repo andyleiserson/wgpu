@@ -30,7 +30,10 @@ targets = [
 ignored = ["cfg_aliases"]
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(wgpu_validate_locks)'] }
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(wgpu_validate_locks)',
+    'cfg(wgpu_extra_validation)',
+] }
 
 [lib]
 

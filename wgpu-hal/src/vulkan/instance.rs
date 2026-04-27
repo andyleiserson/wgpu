@@ -151,11 +151,15 @@ unsafe extern "system" fn debug_utils_messenger_callback(
         });
     }
 
-    #[cfg(feature = "validation_canary")]
-    if cfg!(debug_assertions) && level == log::Level::Error {
+    #[cfg(debug_assertions)]
+    if level == log::Level::Error {
+        #[allow(unused_imports)]
         use alloc::string::ToString as _;
 
-        // Set canary and continue
+        #[cfg(wgpu_extra_validation)]
+        panic!("{}", message.to_string());
+
+        #[cfg(feature = "validation_canary")]
         crate::VALIDATION_CANARY.add(message.to_string());
     }
 

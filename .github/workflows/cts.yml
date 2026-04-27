@@ -21,6 +21,7 @@ env:
   RUST_BACKTRACE: full
   RUSTFLAGS: -D warnings
   RUSTDOCFLAGS: -D warnings
+  WGPU_EXTRA_VALIDATION: true
 
 # Every time a PR is pushed to, cancel any previous jobs. This
 # makes us behave nicer to github and get faster turnaround times
