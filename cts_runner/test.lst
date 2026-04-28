@@ -8,6 +8,8 @@
 // The `cts_runner` integration test `lst_files_are_sorted` verifies that test selectors
 // appear in this file in order -- including ones in comments.
 
+webgpu:api,operation,vertex_state,correctness:vertex_buffer_used_multiple_times_interleaved:*
+
 unittests:*
 
 webgpu:api,operation,adapter,requestAdapter:*
