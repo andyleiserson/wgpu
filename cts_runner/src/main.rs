@@ -15,6 +15,7 @@ use deno_core::resolve_url_or_path;
 use deno_core::serde_json::json;
 use deno_core::v8;
 use deno_core::JsRuntime;
+use deno_core::ModuleSpecifier;
 use deno_core::RuntimeOptions;
 use deno_web::BlobStore;
 use termcolor::Ansi;
@@ -22,15 +23,26 @@ use termcolor::Color::Red;
 use termcolor::ColorSpec;
 use termcolor::WriteColor;
 
+enum Action {
+    PrintAdapterInfo,
+    Run { specifier: ModuleSpecifier },
+}
+
 pub async fn run() -> Result<(), AnyError> {
     let mut args = pico_args::Arguments::from_env();
     let enable_external_texture = args.contains("--enable-external-texture");
-    let url = args
-        .subcommand()
-        .ok()
-        .flatten()
-        .ok_or_else(|| anyhow!("missing specifier in first command line argument"))?;
-    let specifier = resolve_url_or_path(&url, &env::current_dir()?)?;
+    let action = if args.contains("--print-adapter-info") {
+        Action::PrintAdapterInfo
+    } else {
+        let url = args
+            .subcommand()
+            .ok()
+            .flatten()
+            .ok_or_else(|| anyhow!("missing specifier in first command line argument"))?;
+        Action::Run {
+            specifier: resolve_url_or_path(&url, &env::current_dir()?)?,
+        }
+    };
 
     #[cfg(target_os = "windows")]
     match env::var(deno_webgpu::DX12_COMPILER_ENV_VAR) {
@@ -95,10 +107,35 @@ pub async fn run() -> Result<(), AnyError> {
             .unwrap();
     }
 
-    let mod_id = js_runtime.load_main_es_module(&specifier).await?;
-    let result = js_runtime.mod_evaluate(mod_id);
-    js_runtime.run_event_loop(Default::default()).await?;
-    result.await?;
+    match action {
+        Action::PrintAdapterInfo => {
+            js_runtime.execute_script(
+                "cts_runner:print_adapter_info",
+                "(async () => { globalThis.__adapter = await navigator.gpu.requestAdapter(); })();",
+            )?;
+            js_runtime.run_event_loop(Default::default()).await?;
+
+            let context = js_runtime.main_context();
+            let scope = &mut js_runtime.handle_scope();
+            let context_local = v8::Local::new(scope, context);
+            let global_obj = context_local.global(scope);
+            let key = v8::String::new(scope, "__adapter").unwrap();
+            let val = global_obj
+                .get(scope, key.into())
+                .ok_or_else(|| anyhow!("could not read __adapter from globalThis"))?;
+
+            if val.is_null_or_undefined() || !deno_webgpu::print_adapter_info(scope, val) {
+                eprintln!("requestAdapter did not return an adapter");
+                std::process::exit(1);
+            }
+        }
+        Action::Run { specifier } => {
+            let mod_id = js_runtime.load_main_es_module(&specifier).await?;
+            let result = js_runtime.mod_evaluate(mod_id);
+            js_runtime.run_event_loop(Default::default()).await?;
+            result.await?;
+        }
+    }
 
     Ok(())
 }

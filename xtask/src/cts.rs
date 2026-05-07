@@ -392,7 +392,18 @@ pub fn run_cts(
             .run()?);
     }
 
-    log::info!("Running CTS");
+    // Passing options like `--force-fallback-adapter` to the CTS can
+    // cause it to use a different adapter, but otherwise this should
+    // be accurate.
+    log::info!("WebGPU default adapter:");
+    shell
+        .cmd(&bin)
+        .envs(env_vars.clone())
+        .arg("--print-adapter-info")
+        .quiet()
+        .run()
+        .context("Failed to print adapter info")?;
+
     for test in &tests {
         if let Some(running_on_backend) = &running_on_backend {
             if test.fails_if.contains(running_on_backend) {

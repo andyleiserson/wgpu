@@ -308,3 +308,43 @@ fn transform_label<'a>(label: String) -> Option<std::borrow::Cow<'a, str>> {
     Some(std::borrow::Cow::Owned(label))
   }
 }
+
+/// Print adapter information for diagnostic purposes.
+///
+/// The output includes non-standard fields of `wgpu_type::AdapterInfo`
+/// that are not exposed to JS.
+pub fn print_adapter_info(
+  scope: &mut v8::HandleScope,
+  val: v8::Local<v8::Value>,
+) -> bool {
+    let Some(adapter) = deno_core::cppgc::try_unwrap_cppgc_object::<
+        adapter::GPUAdapter,
+    >(scope, val) else {
+        return false;
+    };
+
+    let info = adapter.instance.adapter_get_info(adapter.id);
+
+    fn print_empty_string(input: &str) -> &str {
+        if input.is_empty() {
+            "<empty>"
+        } else {
+            input
+        }
+    }
+
+    println!("               Backend: {}", info.backend);
+    println!("                  Name: {}", info.name);
+    println!("             Vendor ID: {:X}", info.vendor);
+    println!("             Device ID: {:X}", info.device);
+    println!("     Device PCI Bus ID: {}", print_empty_string(&info.device_pci_bus_id));
+    println!("                  Type: {:?}", info.device_type);
+    println!("                Driver: {}", print_empty_string(&info.driver));
+    println!("           Driver Info: {}", print_empty_string(&info.driver_info));
+    println!("     Subgroup Min Size: {}", info.subgroup_min_size);
+    println!("     Subgroup Max Size: {}", info.subgroup_max_size);
+    println!("Transient Saves Memory: {}", info.transient_saves_memory);
+    println!("          Limit Bucket: {}", info.limit_bucket.as_ref().map_or("<disabled>", |b| &b.name));
+
+    true
+}
