@@ -83,7 +83,7 @@ angle = ["wgpu-core?/angle"]
 vulkan-portability = ["wgpu-core?/vulkan-portability"]
 
 ## Enables the GLES backend on WebAssembly only.
-webgl = ["web", "wgpu-core/webgl", "dep:wgpu-hal", "dep:smallvec"]
+webgl = ["web", "wgpu-core/webgl", "dep:wgpu-hal"]
 
 #! ### Backend features
 
@@ -96,7 +96,7 @@ drm = ["wgpu-core?/drm"]
 ## but performs no computation.
 ## Because it lacks basic functionality, it is only actually used if explicitly enabled
 ## through `NoopBackendOptions`.
-noop = ["wgpu-core/noop", "dep:wgpu-hal", "dep:smallvec"]
+noop = ["wgpu-core/noop", "dep:wgpu-hal"]
 
 #! **Note:** In the documentation, if you see that an item depends on a backend,
 #! it means that the item is only available when that backend is enabled _and_ the backend
@@ -220,6 +220,7 @@ hashbrown.workspace = true
 parking_lot = { workspace = true, optional = true }
 profiling.workspace = true
 raw-window-handle = { workspace = true, features = ["alloc"] }
+smallvec.workspace = true
 static_assertions.workspace = true
 
 ########################################
@@ -238,8 +239,6 @@ wgpu-core = { workspace = true, features = [
 ] }
 wgpu-hal.workspace = true
 
-smallvec.workspace = true
-
 ###############
 # Webassembly #
 ###############
@@ -256,8 +255,6 @@ web-sys = { workspace = true, optional = true, features = [
 wgpu-core = { workspace = true, optional = true }
 wgpu-hal = { workspace = true, optional = true }
 
-smallvec = { workspace = true, optional = true }
-
 # Needed for the webgpu backend. Optional as webgpu is optional on WebAssembly.
 wasm-bindgen-futures = { workspace = true, optional = true }
 
@@ -267,8 +264,6 @@ wasm-bindgen-futures = { workspace = true, optional = true }
 [target.'cfg(target_os = "emscripten")'.dependencies]
 wgpu-core.workspace = true
 wgpu-hal.workspace = true
-
-smallvec.workspace = true
 
 [target.'cfg(not(target_has_atomic = "64"))'.dependencies]
 portable-atomic.workspace = true
