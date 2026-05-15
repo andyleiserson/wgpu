@@ -345,7 +345,7 @@ impl Device {
         if self.features.contains(feature) {
             Ok(())
         } else {
-            let have_extensions = self.instance_flags.contains(wgt::InstanceFlags::SUPPRESS_WGPU_EXTENSION_DIAGNOSTICS);
+            let have_extensions = self.instance_flags.contains(wgt::InstanceFlags::STRICT_WEBGPU);
             Err(MissingFeatures { features: feature, have_extensions })
         }
     }
@@ -370,7 +370,7 @@ impl Device {
     ) -> Result<(), E> {
         if self.features.contains(feature) {
             Ok(())
-        } else if self.instance_flags.contains(wgt::InstanceFlags::SUPPRESS_WGPU_EXTENSION_DIAGNOSTICS) {
+        } else if self.instance_flags.contains(wgt::InstanceFlags::STRICT_WEBGPU) {
             Err(alternate())
         } else {
             Err(MissingFeatures { features: feature, have_extensions: true }.into())
@@ -1597,7 +1597,7 @@ impl Device {
                 .flags
                 .sample_count_supported(desc.sample_count)
             {
-                if self.instance_flags.contains(wgt::InstanceFlags::SUPPRESS_WGPU_EXTENSION_DIAGNOSTICS) {
+                if self.instance_flags.contains(wgt::InstanceFlags::STRICT_WEBGPU) {
                     return Err(CreateTextureError::InvalidSampleCount(
                         desc.sample_count,
                         desc.format,

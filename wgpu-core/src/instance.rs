@@ -67,12 +67,17 @@ impl Instance {
         mut instance_desc: wgt::InstanceDescriptor,
         telemetry: Option<hal::Telemetry>,
     ) -> Self {
+        let mut flags = instance_desc.flags;
+        if flags.contains(wgt::InstanceFlags::STRICT_WEBGPU) {
+            flags |= wgt::InstanceFlags::AUTOMATIC_TIMESTAMP_NORMALIZATION;
+        }
+
         let mut this = Self {
             _name: name.to_owned(),
             instance_per_backend: Vec::new(),
             requested_backends: instance_desc.backends,
             supported_backends: Backends::empty(),
-            flags: instance_desc.flags,
+            flags,
             // HACK: We must take ownership of the field here, without being able to pass it into
             // try_add_hal(). Remove it from the mutable descriptor instead, while try_add_hal()
             // borrows the handle from `this.display` instead.

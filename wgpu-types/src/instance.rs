@@ -226,13 +226,22 @@ bitflags::bitflags! {
         /// can be a hassle to do manually. When this is enabled, the timestamp period returned by the queue
         /// will always be `1.0`.
         ///
+        /// Timestamp normalization is always enabled when the `STRICT_WEBGPU` flag is present.
+        ///
         #[doc = link_to_wgpu_docs!(["rqs"]: "struct.CommandEncoder.html#method.resolve_query_set")]
         const AUTOMATIC_TIMESTAMP_NORMALIZATION = 1 << 6;
 
-        /// Suppress diagnostic messages related to wgpu extensions.
+        /// Comply more strictly with the WebGPU specification.
         ///
-        /// Note that this only affects diagnostics. Use of wgpu extensions is governed by [`wgt::FeaturesWGPU`].
-        const SUPPRESS_WGPU_EXTENSION_DIAGNOSTICS = 1 << 7;
+        /// Setting this flag disables some minor functionality that does not have a
+        /// dedicated flag in [`wgt::FeaturesWGPU`], e.g. [`wgt::LoadOp::DontCare`]. It also
+        /// suppresses some diagnostic messages that would otherwise suggest enabling a
+        /// `wgpu` extension, replacing them with a generic "not recognized" error message.
+        ///
+        /// Although features in [`wgt::FeaturesWGPU`] can still be enabled even when this
+        /// flag is set, and will still be usable if they are enabled, this is not guaranteed
+        /// to remain the case in the future.
+        const STRICT_WEBGPU = 1 << 7;
     }
 }
 
