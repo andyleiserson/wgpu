@@ -1,15 +1,15 @@
-// Copyright 2018-2025 the Deno authors. MIT license.
+// Copyright 2018-2026 the Deno authors. MIT license.
 
 use std::borrow::Cow;
 
-use deno_core::cppgc::Ptr;
+use deno_core::WebIDL;
+use deno_core::cppgc::Ref;
 use deno_core::v8;
 use deno_core::webidl::ContextFn;
 use deno_core::webidl::IntOptions;
 use deno_core::webidl::WebIdlConverter;
 use deno_core::webidl::WebIdlError;
 use deno_core::webidl::WebIdlErrorKind;
-use deno_core::WebIDL;
 use deno_error::JsErrorBox;
 
 #[derive(WebIDL)]
@@ -34,7 +34,7 @@ impl<'a> WebIdlConverter<'a> for GPUExtent3D {
   type Options = ();
 
   fn convert<'b>(
-    scope: &mut v8::HandleScope<'a>,
+    scope: &mut v8::PinScope<'a, '_>,
     value: v8::Local<'a, v8::Value>,
     prefix: Cow<'static, str>,
     context: ContextFn<'b>,
@@ -144,7 +144,7 @@ impl<'a> WebIdlConverter<'a> for GPUOrigin3D {
   type Options = ();
 
   fn convert<'b>(
-    scope: &mut v8::HandleScope<'a>,
+    scope: &mut v8::PinScope<'a, '_>,
     value: v8::Local<'a, v8::Value>,
     prefix: Cow<'static, str>,
     context: ContextFn<'b>,
@@ -239,7 +239,7 @@ impl<'a> WebIdlConverter<'a> for GPUColor {
   type Options = ();
 
   fn convert<'b>(
-    scope: &mut v8::HandleScope<'a>,
+    scope: &mut v8::PinScope<'a, '_>,
     value: v8::Local<'a, v8::Value>,
     prefix: Cow<'static, str>,
     context: ContextFn<'b>,
@@ -322,7 +322,7 @@ pub(crate) enum GPUAutoLayoutMode {
 }
 
 pub(crate) enum GPUPipelineLayoutOrGPUAutoLayoutMode {
-  PipelineLayout(Ptr<crate::pipeline_layout::GPUPipelineLayout>),
+  PipelineLayout(Ref<crate::pipeline_layout::GPUPipelineLayout>),
   AutoLayoutMode(GPUAutoLayoutMode),
 }
 
@@ -345,7 +345,7 @@ impl<'a> WebIdlConverter<'a> for GPUPipelineLayoutOrGPUAutoLayoutMode {
   type Options = ();
 
   fn convert<'b>(
-    scope: &mut v8::HandleScope<'a>,
+    scope: &mut v8::PinScope<'a, '_>,
     value: v8::Local<'a, v8::Value>,
     prefix: Cow<'static, str>,
     context: ContextFn<'b>,
@@ -367,7 +367,7 @@ impl<'a> WebIdlConverter<'a> for GPUFeatureName {
   type Options = ();
 
   fn convert<'b>(
-    scope: &mut v8::HandleScope<'a>,
+    scope: &mut v8::PinScope<'a, '_>,
     value: v8::Local<'a, v8::Value>,
     prefix: Cow<'static, str>,
     context: ContextFn<'b>,
@@ -402,13 +402,13 @@ impl From<GPUFeatureName> for wgpu_types::Features {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct GPUTextureUsageFlags(pub(crate) wgpu_types::TextureUsages);
+pub struct GPUTextureUsageFlags(pub wgpu_types::TextureUsages);
 
 impl<'a> WebIdlConverter<'a> for GPUTextureUsageFlags {
   type Options = ();
 
   fn convert<'b>(
-    scope: &mut v8::HandleScope<'a>,
+    scope: &mut v8::PinScope<'a, '_>,
     value: v8::Local<'a, v8::Value>,
     prefix: Cow<'static, str>,
     context: ContextFn<'b>,
@@ -457,7 +457,7 @@ impl<'a> WebIdlConverter<'a> for GPUShaderStageFlags {
   type Options = ();
 
   fn convert<'b>(
-    scope: &mut v8::HandleScope<'a>,
+    scope: &mut v8::PinScope<'a, '_>,
     value: v8::Local<'a, v8::Value>,
     prefix: Cow<'static, str>,
     context: ContextFn<'b>,
@@ -500,7 +500,7 @@ impl<'a> WebIdlConverter<'a> for GPUColorWriteFlags {
   type Options = ();
 
   fn convert<'b>(
-    scope: &mut v8::HandleScope<'a>,
+    scope: &mut v8::PinScope<'a, '_>,
     value: v8::Local<'a, v8::Value>,
     prefix: Cow<'static, str>,
     context: ContextFn<'b>,
