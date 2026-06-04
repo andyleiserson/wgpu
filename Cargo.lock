@@ -1708,7 +1708,7 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.33.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "333928d5eb103c5d4050533cec0384302db6be8ef7d3cebd30ec6a35350353da"
 
@@ -1811,7 +1811,12 @@ checksum = "556f6b2ea90b8d15a74e0e7bb41671c9bdf38cd9f78c284d750b9ce58a2b5be7"
 [[package]]
 name = "glam"
 version = "0.32.1"
->>>>>>> conflict 1 of 1 ends
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f70749695b063ecbf6b62949ccccde2e733ec3ecbbd71d467dca4e5c6c97cca0"
+
+[[package]]
+name = "glam"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fb167719045debebe9f532320accc7b5c993c5a3b813f5696a11d5ca7bdc57b"
 dependencies = [
@@ -5255,7 +5260,7 @@ dependencies = [
  "env_logger",
  "fern",
  "flume",
- "glam 0.32.1",
+ "glam 0.33.0",
  "half",
  "ktx2",
  "log",
@@ -5289,7 +5294,7 @@ dependencies = [
  "cfg_aliases",
  "drm",
  "env_logger",
- "glam 0.32.1",
+ "glam 0.33.0",
  "glow",
  "glutin",
  "glutin-winit",
@@ -5380,7 +5385,7 @@ dependencies = [
  "console_log",
  "env_logger",
  "futures-lite",
- "glam 0.32.1",
+ "glam 0.33.0",
  "half",
  "image",
  "itertools 0.14.0",
