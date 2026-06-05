@@ -59,7 +59,7 @@ pub struct GPUDevice {
   pub limits: SameObject<GPUSupportedLimits>,
   pub adapter_info: Rc<SameObject<GPUAdapterInfo>>,
 
-  pub queue_obj: v8::Global<v8::Object>,
+  pub queue_obj: v8::TracedReference<v8::Object>,
 
   pub error_handler: super::error::ErrorHandler,
   pub lost_promise: v8::Global<v8::Promise>,
@@ -81,7 +81,9 @@ impl WebIdlInterfaceConverter for GPUDevice {
 
 // SAFETY: we're sure this can be GCed
 unsafe impl GarbageCollected for GPUDevice {
-  fn trace(&self, _visitor: &mut deno_core::v8::cppgc::Visitor) {}
+  fn trace(&self, visitor: &mut deno_core::v8::cppgc::Visitor) {
+    visitor.trace(&self.queue_obj);
+  }
 
   fn get_name(&self) -> &'static std::ffi::CStr {
     c"GPUDevice"
@@ -140,8 +142,11 @@ impl GPUDevice {
   }
 
   #[getter]
-  fn queue(&self) -> v8::Global<v8::Object> {
-    self.queue_obj.clone()
+  fn queue<'s>(
+    &self,
+    scope: &mut v8::PinScope<'s, '_>,
+  ) -> v8::Local<'s, v8::Object> {
+    self.queue_obj.get(scope).unwrap()
   }
 
   #[fast]

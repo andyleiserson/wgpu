@@ -196,7 +196,7 @@ impl GPUAdapter {
         device,
       },
     );
-    let queue_obj = v8::Global::new(scope, queue_obj);
+    let queue_obj = v8::TracedReference::new(scope, queue_obj);
 
     let device = GPUDevice {
       instance: self.instance.clone(),
