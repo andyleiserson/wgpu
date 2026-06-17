@@ -442,13 +442,15 @@ pub fn run_cts(
                         println!("\n== Summary for {} ==", test.selector.to_string_lossy());
                         println!("{}", summary.trim());
                     } else {
+                        log::info!("\nRunning {}", test.selector.to_string_lossy());
                         print!("{}", stdout);
                         eprint!("{}", stderr);
                     }
                 } else {
+                    log::info!("\nRunning {}", test.selector.to_string_lossy());
                     print!("{}", stdout);
                     eprint!("{}", stderr);
-                    bail!("CTS failed");
+                    bail!("CTS failed ({})", output.status);
                 }
             }
             PrintOutputWhen::Always => {
