@@ -28,6 +28,7 @@ use wgpu_test::{gpu_test, GpuTestConfiguration, TestParameters, TestingContext};
 
 pub fn all_tests(vec: &mut Vec<wgpu_test::GpuTestInitializer>) {
     vec.push(ROBUST_ACCESS_VERTEX_BASE_VERTEX);
+    vec.push(VERTEX_ID_BASE_VERTEX_SWEEP);
 }
 
 const NUM_VERTICES: u32 = 4;
@@ -524,3 +525,241 @@ async fn robust_access_vertex(ctx: TestingContext) {
 static ROBUST_ACCESS_VERTEX_BASE_VERTEX: GpuTestConfiguration = GpuTestConfiguration::new()
     .parameters(TestParameters::default().test_features_limits())
     .run_async(robust_access_vertex);
+
+// ---------------------------------------------------------------------------
+// Diagnostic probe: read back the actual `@builtin(vertex_index)` the driver
+// produces for a sweep of `base_vertex` values.
+//
+// The CTS port above narrowed the failure to a single ingredient: large
+// `base_vertex`. This probe pins the mechanism by reading `vertex_index`
+// directly. Each sample does one indexed draw of a single vertex with index
+// value 0, so the expected `vertex_index` is exactly `base_vertex`. The slot to
+// write is supplied via a uniform (independent of `base_vertex`), avoiding the
+// circularity of keying the output on the value under test.
+// ---------------------------------------------------------------------------
+
+/// `base_vertex` values to probe, chosen to bracket the 10^4..10^6 threshold and
+/// to reveal a power-of-two truncation boundary if there is one.
+const BASE_VERTEX_SAMPLES: [i32; 13] = [
+    0, 1, 100, 10_000, 65_535, 65_536, 100_000, 131_072, 262_144, 524_288, 1_000_000, 1_048_576,
+    16_777_215,
+];
+
+const SWEEP_SHADER: &str = r#"
+@group(0) @binding(0) var<storage, read_write> output : array<u32>;
+
+struct Params { slot : u32, pad0 : u32, pad1 : u32, pad2 : u32 };
+@group(0) @binding(1) var<uniform> params : Params;
+
+@vertex fn vs_main(@builtin(vertex_index) vertex_index : u32) -> @builtin(position) vec4<f32> {
+  output[params.slot] = vertex_index;
+  return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+}
+
+@fragment fn fs_main() -> @location(0) vec4<f32> {
+  return vec4<f32>(0.0);
+}
+"#;
+
+async fn vertex_id_base_vertex_sweep(ctx: TestingContext) {
+    let sample_count = BASE_VERTEX_SAMPLES.len();
+    let buffer_size = (sample_count * 4) as u64;
+
+    let gpu_buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("observed vertex_index"),
+        size: buffer_size,
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+        mapped_at_creation: false,
+    });
+    let cpu_buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("readback"),
+        size: buffer_size,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+
+    let index_buffer = ctx.device.create_buffer_init(&BufferInitDescriptor {
+        label: Some("index buffer"),
+        contents: bytemuck::cast_slice(&[0u32]),
+        usage: wgpu::BufferUsages::INDEX,
+    });
+
+    let bind_group_layout = ctx
+        .device
+        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(4),
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: std::num::NonZeroU64::new(16),
+                    },
+                    count: None,
+                },
+            ],
+        });
+    let pipeline_layout = ctx
+        .device
+        .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
+        });
+
+    let shader = ctx
+        .device
+        .create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("sweep"),
+            source: wgpu::ShaderSource::Wgsl(SWEEP_SHADER.into()),
+        });
+
+    let pipeline = ctx
+        .device
+        .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: None,
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                buffers: &[],
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+            },
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::PointList,
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+
+    let dummy = ctx
+        .device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some("dummy"),
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        })
+        .create_view(&wgpu::TextureViewDescriptor::default());
+
+    for (slot, &base_vertex) in BASE_VERTEX_SAMPLES.iter().enumerate() {
+        let params = [slot as u32, 0, 0, 0];
+        let params_buffer = ctx.device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("params"),
+            contents: bytemuck::cast_slice(&params),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+        let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: gpu_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: params_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        let mut encoder = ctx
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        {
+            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &dummy,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations::default(),
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            rpass.set_pipeline(&pipeline);
+            rpass.set_bind_group(0, Some(&bind_group), &[]);
+            rpass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            rpass.draw_indexed(0..1, base_vertex, 0..1);
+        }
+        ctx.queue.submit([encoder.finish()]);
+    }
+
+    let mut copy_encoder = ctx
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+    copy_encoder.copy_buffer_to_buffer(&gpu_buffer, 0, &cpu_buffer, 0, buffer_size);
+    ctx.queue.submit([copy_encoder.finish()]);
+
+    let slice = cpu_buffer.slice(..);
+    slice.map_async(wgpu::MapMode::Read, |_| ());
+    ctx.async_poll(wgpu::PollType::wait_indefinitely())
+        .await
+        .unwrap();
+    let observed: Vec<u32> = bytemuck::cast_slice(&slice.get_mapped_range().unwrap()).to_vec();
+
+    let mut mismatches = 0;
+    for (slot, &base_vertex) in BASE_VERTEX_SAMPLES.iter().enumerate() {
+        // Index value is 0, so vertex_index should equal base_vertex.
+        let expected = base_vertex as u32;
+        let got = observed[slot];
+        let status = if got == expected { "ok" } else { "MISMATCH" };
+        eprintln!(
+            "base_vertex={base_vertex} -> vertex_index={got} (expected {expected}) [{status}]"
+        );
+        if got != expected {
+            mismatches += 1;
+        }
+    }
+
+    assert_eq!(
+        mismatches, 0,
+        "{mismatches} base_vertex value(s) produced the wrong vertex_index"
+    );
+}
+
+#[gpu_test]
+static VERTEX_ID_BASE_VERTEX_SWEEP: GpuTestConfiguration = GpuTestConfiguration::new()
+    .parameters(
+        TestParameters::default()
+            .test_features_limits()
+            .features(wgpu::Features::VERTEX_WRITABLE_STORAGE),
+    )
+    .run_async(vertex_id_base_vertex_sweep);
