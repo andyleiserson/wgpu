@@ -1083,7 +1083,7 @@ impl Device {
         } else if desc.usage.contains(wgt::BufferUsages::VERTEX) {
             // Bumping the size by 1 so that we can bind an empty range at the
             // end of the buffer.
-            desc.size + 1
+            desc.size /* + 1 */
         } else {
             desc.size
         };

@@ -14,6 +14,7 @@ mod regression {
 }
 
 mod adapter;
+mod base_vertex;
 mod bgra8unorm_storage;
 mod bind_group_layout_dedup;
 mod bind_groups;
@@ -90,6 +91,7 @@ fn all_tests() -> Vec<wgpu_test::GpuTestInitializer> {
     let mut tests = Vec::new();
 
     adapter::all_tests(&mut tests);
+    base_vertex::all_tests(&mut tests);
     bgra8unorm_storage::all_tests(&mut tests);
     buffer_resource_limits::all_tests(&mut tests);
     bind_group_layout_dedup::all_tests(&mut tests);
