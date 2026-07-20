@@ -152,12 +152,18 @@ impl GPUAdapter {
       .map(|path| wgpu_types::Trace::Directory(std::path::PathBuf::from(path)))
       .unwrap_or_default();
 
+    let memory_hints = std::env::var(crate::MEMORY_HINTS_ENV_VAR)
+      .ok()
+      .as_deref()
+      .and_then(|val| str::parse::<wgpu_types::MemoryHints>(val).ok())
+      .unwrap_or_default();
+
     let wgpu_descriptor = wgpu_types::DeviceDescriptor {
       label: crate::transform_label(descriptor.label.clone()),
       required_features,
       required_limits,
       experimental_features: wgpu_types::ExperimentalFeatures::disabled(),
-      memory_hints: Default::default(),
+      memory_hints,
       trace,
     };
 

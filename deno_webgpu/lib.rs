@@ -47,6 +47,7 @@ pub const UNSTABLE_FEATURE_NAME: &str = "webgpu";
 
 pub const DX12_COMPILER_ENV_VAR: &str = "DENO_WEBGPU_DX12_COMPILER";
 pub const STRICT_COMPLIANCE_ENV_VAR: &str = "DENO_WEBGPU_STRICT_COMPLIANCE";
+pub const MEMORY_HINTS_ENV_VAR: &str = "DENO_WEBGPU_MEMORY_HINTS";
 
 #[allow(clippy::print_stdout)]
 pub fn print_linker_flags(name: &str) {

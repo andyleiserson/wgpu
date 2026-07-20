@@ -71,6 +71,36 @@ pub async fn run() -> Result<(), AnyError> {
         }
     }
 
+    if let Some(val) = env::var_os(deno_webgpu::STRICT_COMPLIANCE_ENV_VAR) {
+        log::info!(
+            "Environment variable `{}` is set to `{}`.",
+            deno_webgpu::STRICT_COMPLIANCE_ENV_VAR,
+            &val.to_string_lossy(),
+        );
+    } else {
+        log::info!(
+            "cts_runner enables strict WebGPU compliance by default. Configure with `{}` environment variable.",
+            deno_webgpu::STRICT_COMPLIANCE_ENV_VAR,
+        );
+        unsafe {
+            // SAFETY: We are single-threaded at this point.
+            env::set_var(deno_webgpu::STRICT_COMPLIANCE_ENV_VAR, "1");
+        }
+    }
+
+    if let Some(val) = env::var_os(deno_webgpu::MEMORY_HINTS_ENV_VAR) {
+        log::info!(
+            "Environment variable `{}` is set to `{}`.",
+            deno_webgpu::MEMORY_HINTS_ENV_VAR,
+            &val.to_string_lossy(),
+        );
+    } else {
+        unsafe {
+            // SAFETY: We are single-threaded at this point.
+            env::set_var(deno_webgpu::MEMORY_HINTS_ENV_VAR, "memory-usage");
+        }
+    }
+
     let options = RuntimeOptions {
         module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
         extensions: vec![

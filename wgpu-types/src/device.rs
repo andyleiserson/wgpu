@@ -1,4 +1,4 @@
-use core::ops::Range;
+use core::{ops::Range, str::FromStr};
 
 #[cfg(any(feature = "serde", test))]
 use serde::{Deserialize, Serialize};
@@ -80,6 +80,18 @@ pub enum MemoryHints {
         /// memory block.
         suballocated_device_memory_block_size: Range<u64>,
     },
+}
+
+impl FromStr for MemoryHints {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "performance" => Ok(MemoryHints::Performance),
+            "memory-usage" => Ok(MemoryHints::MemoryUsage),
+            _ => Err(()),
+        }
+    }
 }
 
 /// Controls API call tracing and specifies where the trace is written.
