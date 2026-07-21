@@ -385,7 +385,15 @@ impl LocalImageType {
                 flags: make_flags(false, ImageTypeFlags::empty()),
                 image_format: format.into(),
             },
-            crate::ImageClass::External => unimplemented!(),
+            crate::ImageClass::External => LocalImageType {
+                sampled_type: crate::Scalar {
+                    kind: crate::ScalarKind::Float,
+                    width: 4,
+                },
+                dim: spirv::Dim::Dim2D,
+                flags: make_flags(false, ImageTypeFlags::SAMPLED),
+                image_format: spirv::ImageFormat::Unknown,
+            },
         }
     }
 }
@@ -541,6 +549,18 @@ enum LocalType {
     },
     AccelerationStructure,
     RayQuery,
+}
+
+impl LocalType {
+    const EXTERNAL_TEXTURE_PLANE: Self = LocalType::Image(LocalImageType {
+        sampled_type: crate::Scalar {
+            kind: crate::ScalarKind::Float,
+            width: 4,
+        },
+        dim: spirv::Dim::Dim2D,
+        flags: ImageTypeFlags::SAMPLED,
+        image_format: spirv::ImageFormat::Unknown,
+    });
 }
 
 /// A type encountered during SPIR-V generation.
@@ -779,6 +799,16 @@ impl GlobalVariable {
     }
 }
 
+/// An external texture, which maps to four SPIR-V globals: up to three planes, and the
+/// parameters buffer.
+///
+/// These are separated from `GlobalVariable`s so that indices in the main `GlobalVariable`
+/// map retain their meaning.
+struct ExternalTexture {
+    planes: [GlobalVariable; 3],
+    params: GlobalVariable,
+}
+
 struct FunctionArgument {
     /// Actual instruction of the argument.
     instruction: Instruction,
@@ -959,6 +989,7 @@ pub struct Writer {
     constant_ids: HandleVec<crate::Expression, Word>,
     cached_constants: crate::FastHashMap<CachedConstant, Word>,
     global_variables: HandleVec<crate::GlobalVariable, GlobalVariable>,
+    external_textures: crate::FastHashMap<Handle<crate::GlobalVariable>, ExternalTexture>,
     std140_compat_uniform_types: crate::FastHashMap<Handle<crate::Type>, Std140CompatTypeInfo>,
     fake_missing_bindings: bool,
     binding_map: BindingMap,

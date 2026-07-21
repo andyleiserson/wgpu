@@ -5,7 +5,8 @@ use arrayvec::ArrayVec;
 use spirv::Word;
 
 use super::{
-    Function, FunctionArgument, Instruction, LookupFunctionType, WrappedFunction, WriterFlags,
+    Function, FunctionArgument, Instruction, LookupFunctionType, LookupType, WrappedFunction,
+    WriterFlags,
 };
 use crate::{Handle, UniqueArena};
 
@@ -121,14 +122,25 @@ impl crate::AddressSpace {
 /// See [`back::spv::GlobalVariable`] for details.
 ///
 /// [`back::spv::GlobalVariable`]: super::GlobalVariable
-pub fn global_needs_wrapper(ir_module: &crate::Module, var: &crate::GlobalVariable) -> bool {
-    match var.space {
+pub fn global_needs_wrapper(
+    ir_module: &crate::Module,
+    space: crate::AddressSpace,
+    ty: LookupType,
+) -> bool {
+    match space {
         crate::AddressSpace::Uniform
         | crate::AddressSpace::Storage { .. }
         | crate::AddressSpace::Immediate => {}
         _ => return false,
     };
-    match ir_module.types[var.ty].inner {
+    // Only the address spaces handled above can require a wrapper, and the
+    // synthesized types used for external textures are always in the `Handle`
+    // address space, so `ty` refers to a type in the module's arena here.
+    let ty = match ty {
+        LookupType::Handle(handle) => handle,
+        LookupType::Local(_) => return false,
+    };
+    match ir_module.types[ty].inner {
         crate::TypeInner::Struct {
             ref members,
             span: _,
