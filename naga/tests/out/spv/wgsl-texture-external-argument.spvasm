@@ -1,0 +1,99 @@
+; SPIR-V
+; Version: 1.1
+; Generator: rspirv
+; Bound: 53
+OpCapability Shader
+%1 = OpExtInstImport "GLSL.std.450"
+OpMemoryModel Logical GLSL450
+OpEntryPoint GLCompute %46 "main"
+OpExecutionMode %46 LocalSize 1 1 1
+OpMemberDecorate %12 0 Offset 0
+OpMemberDecorate %12 1 Offset 4
+OpMemberDecorate %12 2 Offset 8
+OpMemberDecorate %12 3 Offset 12
+OpMemberDecorate %13 0 Offset 0
+OpMemberDecorate %13 0 ColMajor
+OpMemberDecorate %13 0 MatrixStride 16
+OpMemberDecorate %13 1 Offset 64
+OpMemberDecorate %13 1 ColMajor
+OpMemberDecorate %13 1 MatrixStride 16
+OpMemberDecorate %13 2 Offset 112
+OpMemberDecorate %13 3 Offset 128
+OpMemberDecorate %13 4 Offset 144
+OpMemberDecorate %13 4 ColMajor
+OpMemberDecorate %13 4 MatrixStride 8
+OpMemberDecorate %13 5 Offset 168
+OpMemberDecorate %13 5 ColMajor
+OpMemberDecorate %13 5 MatrixStride 8
+OpMemberDecorate %13 6 Offset 192
+OpMemberDecorate %13 7 Offset 200
+OpDecorate %15 DescriptorSet 0
+OpDecorate %15 Binding 0
+OpDecorate %17 DescriptorSet 0
+OpDecorate %17 Binding 1
+OpDecorate %18 DescriptorSet 0
+OpDecorate %18 Binding 2
+OpDecorate %19 DescriptorSet 0
+OpDecorate %19 Binding 3
+OpDecorate %20 Block
+OpMemberDecorate %20 0 Offset 0
+%2 = OpTypeVoid
+%3 = OpTypeFloat 32
+%4 = OpTypeInt 32 0
+%5 = OpTypeVector %4 2
+%7 = OpTypeVector %3 2
+%6 = OpTypeMatrix %7 3
+%9 = OpTypeVector %3 3
+%8 = OpTypeMatrix %9 3
+%11 = OpTypeVector %3 4
+%10 = OpTypeMatrix %11 4
+%12 = OpTypeStruct %3 %3 %3 %3
+%13 = OpTypeStruct %10 %8 %12 %12 %6 %6 %5 %4
+%14 = OpTypeImage %3 2D 0 0 0 1 Unknown
+%16 = OpTypePointer UniformConstant %14
+%15 = OpVariable  %16  UniformConstant
+%17 = OpVariable  %16  UniformConstant
+%18 = OpVariable  %16  UniformConstant
+%20 = OpTypeStruct %13
+%21 = OpTypePointer Uniform %20
+%19 = OpVariable  %21  Uniform
+%31 = OpTypeFunction %4 %16 %16 %16 %13
+%32 = OpConstant  %4  0
+%47 = OpTypeFunction %2
+%50 = OpTypePointer Uniform %13
+%30 = OpFunction  %4  None %31
+%23 = OpFunctionParameter  %16
+%25 = OpFunctionParameter  %16
+%27 = OpFunctionParameter  %16
+%29 = OpFunctionParameter  %13
+%22 = OpLabel
+%24 = OpLoad  %14  %23
+%26 = OpLoad  %14  %25
+%28 = OpLoad  %14  %27
+OpBranch %33
+%33 = OpLabel
+OpReturnValue %32
+OpFunctionEnd
+%42 = OpFunction  %4  None %31
+%35 = OpFunctionParameter  %16
+%37 = OpFunctionParameter  %16
+%39 = OpFunctionParameter  %16
+%41 = OpFunctionParameter  %13
+%34 = OpLabel
+%36 = OpLoad  %14  %35
+%38 = OpLoad  %14  %37
+%40 = OpLoad  %14  %39
+OpBranch %43
+%43 = OpLabel
+%44 = OpFunctionCall  %4  %30 %35 %37 %39 %41
+OpReturnValue %44
+OpFunctionEnd
+%46 = OpFunction  %2  None %47
+%45 = OpLabel
+OpBranch %48
+%48 = OpLabel
+%51 = OpAccessChain  %50  %19 %32
+%52 = OpLoad  %13  %51
+%49 = OpFunctionCall  %4  %42 %15 %17 %18 %52
+OpReturn
+OpFunctionEnd

@@ -1298,6 +1298,23 @@ impl Writer {
                 };
                 ep_context.argument_ids.push(id);
             } else {
+                function
+                    .parameter_offsets
+                    .push(function.parameters.len() as u32);
+                if ir_module.types[argument.ty].inner.is_external_image() {
+                    // An external texture is a single logical argument, but it
+                    // is passed as four SPIR-V parameters: three planes and a
+                    // parameters buffer.
+                    self.write_external_texture_function_parameters(
+                        &mut function,
+                        &mut prelude,
+                        &mut parameter_type_ids,
+                        argument.ty,
+                        argument.name.as_deref(),
+                        ir_module,
+                    )?;
+                    continue;
+                }
                 let argument_id = self.id_gen.next();
                 let instruction = Instruction::function_parameter(argument_type_id, argument_id);
                 if self.flags.contains(WriterFlags::DEBUG) {
@@ -1491,6 +1508,41 @@ impl Writer {
         }
         for (handle, var) in ir_module.global_variables.iter() {
             if info[handle].is_empty() {
+                continue;
+            }
+
+            if ir_module.types[var.ty].inner.is_external_image() {
+                // External textures are lowered to separate plane and
+                // parameter globals held in `external_textures`; the dummy
+                // entry in `global_variables` must not be processed here.
+                if let Some(ref mut iface) = interface {
+                    if self.physical_layout.version >= 0x10400 {
+                        let external_texture = &self.external_textures[&handle];
+                        for plane in &external_texture.planes {
+                            iface.varying_ids.push(plane.var_id);
+                        }
+                        iface.varying_ids.push(external_texture.params.var_id);
+                    }
+                }
+                // TODO: ideally we would lower this in a way that enables handling
+                // them the same as regular globals
+                let plane_type_id = self.get_type_id(LookupType::Local(LocalType::EXTERNAL_TEXTURE_PLANE));
+                let params_type_id = self.get_handle_type_id(ir_module.special_types.external_texture_params.unwrap());
+                for &(var, type_id) in &[
+                    (&self.external_textures[&handle].planes[0], plane_type_id),
+                    (&self.external_textures[&handle].planes[1], plane_type_id),
+                    (&self.external_textures[&handle].planes[2], plane_type_id),
+                    (&self.external_textures[&handle].params, params_type_id),
+                ] {
+                    let mut gv = self.global_variables[handle].clone();
+                    let id = self.id_gen.next();
+                    prelude
+                        .body
+                        .push(Instruction::load(type_id, id, gv.var_id, None));
+                    gv.access_id = gv.var_id;
+                    gv.handle_id = id;
+                    self.global_variables[handle] = gv;
+                }
                 continue;
             }
 
@@ -3676,6 +3728,74 @@ impl Writer {
             ],
             params: GlobalVariable::new(params),
         })
+    }
+
+    /// Emit the SPIR-V function parameters for an external texture argument.
+    ///
+    /// A `texture_external` is a single logical function argument, but it is
+    /// lowered to four SPIR-V parameters: three plane textures followed by the
+    /// parameters buffer. The planes are passed as `UniformConstant` pointers,
+    /// like any other texture argument, and the parameters buffer is passed by
+    /// value.
+    fn write_external_texture_function_parameters(
+        &mut self,
+        function: &mut Function,
+        prelude: &mut Block,
+        parameter_type_ids: &mut Vec<Word>,
+        ty: Handle<crate::Type>,
+        name: Option<&str>,
+        ir_module: &crate::Module,
+    ) -> Result<(), Error> {
+        // Each plane is an ordinary 2D sampled float texture.
+        let plane_pointer_type_id =
+            self.get_handle_pointer_type_id(ty, spirv::StorageClass::UniformConstant);
+        let plane_image_type_id = self.get_handle_type_id(ty);
+        for plane in 0..3 {
+            let argument_id = self.id_gen.next();
+            let instruction = Instruction::function_parameter(plane_pointer_type_id, argument_id);
+            if self.flags.contains(WriterFlags::DEBUG) {
+                if let Some(name) = name {
+                    self.debugs.push(Instruction::name(
+                        argument_id,
+                        &format!("{name}_plane{plane}"),
+                    ));
+                }
+            }
+            let handle_id = self.id_gen.next();
+            prelude.body.push(Instruction::load(
+                plane_image_type_id,
+                handle_id,
+                argument_id,
+                None,
+            ));
+            function.parameters.push(FunctionArgument {
+                instruction,
+                handle_id,
+            });
+            parameter_type_ids.push(plane_pointer_type_id);
+        }
+
+        let params_type_id = self.get_handle_type_id(
+            ir_module
+                .special_types
+                .external_texture_params
+                .expect("external textures should have generated a parameters type"),
+        );
+        let argument_id = self.id_gen.next();
+        let instruction = Instruction::function_parameter(params_type_id, argument_id);
+        if self.flags.contains(WriterFlags::DEBUG) {
+            if let Some(name) = name {
+                self.debugs
+                    .push(Instruction::name(argument_id, &format!("{name}_params")));
+            }
+        }
+        function.parameters.push(FunctionArgument {
+            instruction,
+            handle_id: 0,
+        });
+        parameter_type_ids.push(params_type_id);
+
+        Ok(())
     }
 
     /// Write the necessary decorations for a struct member.

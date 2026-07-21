@@ -251,6 +251,15 @@ struct EntryPointContext {
 struct Function {
     signature: Option<Instruction>,
     parameters: Vec<FunctionArgument>,
+    /// Maps each Naga function argument to the index within [`parameters`] of
+    /// the first SPIR-V parameter it expands to.
+    ///
+    /// Most arguments map to a single parameter, but an external texture
+    /// argument expands to four consecutive parameters (three planes and a
+    /// parameters buffer).
+    ///
+    /// [`parameters`]: Function::parameters
+    parameter_offsets: Vec<u32>,
     variables: crate::FastHashMap<Handle<crate::LocalVariable>, LocalVariable>,
     /// Map from a local variable that is a ray query to its u32 tracker.
     ray_query_initialization_tracker_variables:
@@ -316,10 +325,11 @@ impl Function {
     fn parameter_id(&self, index: u32) -> Word {
         match self.entry_point_context {
             Some(ref context) => context.argument_ids[index as usize],
-            None => self.parameters[index as usize]
-                .instruction
-                .result_id
-                .unwrap(),
+            None => {
+                let offset = self.parameter_offsets[index as usize] as usize;
+                self.parameters[offset].instruction.result_id.unwrap()
+                // TODO: assert not external texture
+            }
         }
     }
 }
@@ -1241,7 +1251,7 @@ pub fn supported_capabilities() -> crate::valid::Capabilities {
         | Caps::RAY_HIT_VERTEX_POSITION
         | Caps::SHADER_FLOAT16
         | Caps::SHADER_INT16
-        // No TEXTURE_EXTERNAL
+        | Caps::TEXTURE_EXTERNAL
         | Caps::SHADER_FLOAT16_IN_FLOAT32
         | Caps::SHADER_BARYCENTRICS
         | Caps::MESH_SHADER
