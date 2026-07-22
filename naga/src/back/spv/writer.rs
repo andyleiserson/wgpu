@@ -390,6 +390,14 @@ impl Writer {
         self.get_type_id(LocalType::Numeric(numeric).into())
     }
 
+    pub(super) fn get_vector_type_id(
+        &mut self,
+        size: crate::VectorSize,
+        scalar: crate::Scalar,
+    ) -> Word {
+        self.get_numeric_type_id(NumericType::Vector { size, scalar })
+    }
+
     pub(super) fn get_u32_type_id(&mut self) -> Word {
         self.get_numeric_type_id(NumericType::Scalar(crate::Scalar::U32))
     }
@@ -725,6 +733,32 @@ impl Writer {
                             }
                         }
                     }
+                }
+                crate::Expression::ImageQuery {
+                    image,
+                    query: crate::ImageQuery::Size { .. },
+                } if info[image]
+                    .ty
+                    .inner_with(&ir_module.types)
+                    .is_external_image() =>
+                {
+                    self.write_external_texture_size_query(ir_module)?;
+                }
+                crate::Expression::ImageLoad { image, .. }
+                    if info[image]
+                        .ty
+                        .inner_with(&ir_module.types)
+                        .is_external_image() =>
+                {
+                    self.write_external_texture_image_load(ir_module)?;
+                }
+                crate::Expression::ImageSample { image, .. }
+                    if info[image]
+                        .ty
+                        .inner_with(&ir_module.types)
+                        .is_external_image() =>
+                {
+                    self.write_external_texture_image_sample(ir_module)?;
                 }
                 _ => {}
             }
