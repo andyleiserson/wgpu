@@ -656,6 +656,10 @@ enum WrappedFunction {
     MatCx2GetColumn {
         r#type: Handle<crate::Type>,
     },
+    ExternalTextureSize,
+    ExternalTextureLoad,
+    ExternalTextureSample,
+    ExternalTextureYuvToRgb,
 }
 
 /// A map from evaluated [`Expression`](crate::Expression)s to their SPIR-V ids.
@@ -767,6 +771,9 @@ struct GlobalVariable {
     /// `OpLoad` instruction in the function's prologue that loads its value.
     /// (This value is assigned as we write the prologue code of each function.)
     /// It is then used for all operations on the global, such as `OpImageSample`.
+    ///
+    /// As a special case, when `GlobalVariable` is an external texture parameter
+    /// buffer, this is the value of that parameter struct.
     handle_id: Word,
 
     /// The SPIR-V id of a pointer to this variable's Naga IR value.

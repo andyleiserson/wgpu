@@ -384,6 +384,14 @@ impl Writer {
         self.get_type_id(LocalType::Numeric(numeric).into())
     }
 
+    pub(super) fn get_vector_type_id(
+        &mut self,
+        size: crate::VectorSize,
+        scalar: crate::Scalar,
+    ) -> Word {
+        self.get_numeric_type_id(NumericType::Vector { size, scalar })
+    }
+
     pub(super) fn get_u32_type_id(&mut self) -> Word {
         self.get_numeric_type_id(NumericType::Scalar(crate::Scalar::U32))
     }
@@ -552,6 +560,8 @@ impl Writer {
     ) -> Result<(), Error> {
         log::trace!("Generating wrapped functions for {:?}", ir_function.name);
 
+        let mut uses_external_texture_params = false;
+
         for (expr_handle, expr) in ir_function.expressions.iter() {
             match *expr {
                 crate::Expression::Binary { op, left, right } => {
@@ -636,8 +646,44 @@ impl Writer {
                         }
                     }
                 }
+                crate::Expression::ImageQuery {
+                    image,
+                    query: crate::ImageQuery::Size { .. },
+                } if info[image]
+                    .ty
+                    .inner_with(&ir_module.types)
+                    .is_external_image() =>
+                {
+                    self.write_external_texture_size_query(ir_module)?;
+                    uses_external_texture_params = true;
+                }
+                crate::Expression::ImageLoad { image, .. }
+                    if info[image]
+                        .ty
+                        .inner_with(&ir_module.types)
+                        .is_external_image() =>
+                {
+                    self.write_external_texture_image_load(ir_module)?;
+                    uses_external_texture_params = true;
+                }
+                crate::Expression::ImageSample { image, .. }
+                    if info[image]
+                        .ty
+                        .inner_with(&ir_module.types)
+                        .is_external_image() =>
+                {
+                    self.write_external_texture_image_sample(ir_module)?;
+                    uses_external_texture_params = true;
+                }
                 _ => {}
             }
+        }
+
+        if uses_external_texture_params {
+            self.write_wrapped_convert_from_std140_compat_type(
+                ir_module,
+                ir_module.special_types.external_texture_params.unwrap(),
+            )?;
         }
 
         Ok(())
@@ -1527,22 +1573,47 @@ impl Writer {
                 // TODO: ideally we would lower this in a way that enables handling
                 // them the same as regular globals
                 let plane_type_id = self.get_type_id(LookupType::Local(LocalType::EXTERNAL_TEXTURE_PLANE));
-                let params_type_id = self.get_handle_type_id(ir_module.special_types.external_texture_params.unwrap());
-                for &(var, type_id) in &[
-                    (&self.external_textures[&handle].planes[0], plane_type_id),
-                    (&self.external_textures[&handle].planes[1], plane_type_id),
-                    (&self.external_textures[&handle].planes[2], plane_type_id),
-                    (&self.external_textures[&handle].params, params_type_id),
-                ] {
-                    let mut gv = self.global_variables[handle].clone();
+                let params_ty = ir_module.special_types.external_texture_params.unwrap();
+                let params_type_id = self.get_handle_type_id(params_ty);
+                let params_std140_type_id = self.std140_compat_uniform_types[&params_ty].type_id;
+                let params_std140_pointer_type_id = self.get_pointer_type_id(params_std140_type_id, spirv::StorageClass::Uniform);
+                let index_id = self.get_index_constant(0);
+                let external_texture = self.external_textures.get_mut(&handle).unwrap();
+                for plane_var in external_texture.planes.each_mut() {
                     let id = self.id_gen.next();
                     prelude
                         .body
-                        .push(Instruction::load(type_id, id, gv.var_id, None));
-                    gv.access_id = gv.var_id;
-                    gv.handle_id = id;
-                    self.global_variables[handle] = gv;
+                        .push(Instruction::load(plane_type_id, id, plane_var.var_id, None));
+                    plane_var.access_id = plane_var.var_id;
+                    plane_var.handle_id = id;
                 }
+                let params_std140_pointer_id = self.id_gen.next();
+                prelude.body.push(Instruction::access_chain(
+                    params_std140_pointer_type_id,
+                    params_std140_pointer_id,
+                    external_texture.params.var_id,
+                    &[index_id],
+                ));
+
+                let params_std140_value_id = self.id_gen.next();
+                prelude
+                    .body
+                    .push(Instruction::load(params_std140_type_id, params_std140_value_id, params_std140_pointer_id, None));
+
+                let params_value_id = self.id_gen.next();
+                prelude.body.push(Instruction::function_call(
+                    params_type_id,
+                    params_value_id,
+                    self.wrapped_functions[
+                        &WrappedFunction::ConvertFromStd140CompatType {
+                            r#type: params_ty,
+                        }
+                    ],
+                    &[params_std140_value_id],
+                ));
+
+                external_texture.params.access_id = params_std140_pointer_id;
+                external_texture.params.handle_id = params_value_id;
                 continue;
             }
 
@@ -3551,7 +3622,8 @@ impl Writer {
             self.decorate(id, Decoration::DescriptorSet, &[bind_target.descriptor_set]);
             self.decorate(id, Decoration::Binding, &[bind_target.binding]);
 
-            if let Some(remapped_binding_array_size) = bind_target.binding_array_size {
+            if let Some(remapped_binding_array_size) = bind_target.binding_array_size
+            {
                 if let Some(&crate::TypeInner::BindingArray { base, .. }) =
                     ty_handle.map(|ty| &ir_module.types[ty].inner)
                 {
@@ -3992,6 +4064,9 @@ impl Writer {
             if var.space == crate::AddressSpace::Uniform {
                 self.write_std140_compat_type_declaration(ir_module, var.ty)?;
             }
+        }
+        if let Some(ty) = ir_module.special_types.external_texture_params {
+            self.write_std140_compat_type_declaration(ir_module, ty)?;
         }
 
         // write all const-expressions as constants
