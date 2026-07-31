@@ -1,4 +1,5 @@
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
+use core::any::Any;
 
 use crate::{
     Adapter, Api, DeviceError, OpenDevice, SurfaceCapabilities, TextureFormatCapabilities,
@@ -27,6 +28,14 @@ pub trait DynAdapter: DynResource {
         features: wgt::Features,
         limits: &wgt::Limits,
         memory_hints: &wgt::MemoryHints,
+    ) -> Result<DynOpenDevice, DeviceError>;
+
+    unsafe fn open_ext(
+        &self,
+        features: wgt::Features,
+        limits: &wgt::Limits,
+        memory_hints: &wgt::MemoryHints,
+        extensions: Vec<Box<dyn Any>>,
     ) -> Result<DynOpenDevice, DeviceError>;
 
     unsafe fn texture_format_capabilities(
@@ -58,6 +67,21 @@ impl<A: Adapter + DynResource> DynAdapter for A {
         unsafe { A::open(self, features, limits, memory_hints) }.map(|open_device| DynOpenDevice {
             device: Box::new(open_device.device),
             queue: Box::new(open_device.queue),
+        })
+    }
+
+    unsafe fn open_ext(
+        &self,
+        features: wgt::Features,
+        limits: &wgt::Limits,
+        memory_hints: &wgt::MemoryHints,
+        extensions: Vec<Box<dyn Any>>,
+    ) -> Result<DynOpenDevice, DeviceError> {
+        unsafe { A::open_ext(self, features, limits, memory_hints, extensions) }.map(|open_device| {
+            DynOpenDevice {
+                device: Box::new(open_device.device),
+                queue: Box::new(open_device.queue),
+            }
         })
     }
 

@@ -1,5 +1,5 @@
 use alloc::{borrow::ToOwned as _, boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
-use core::{ffi::CStr, marker::PhantomData};
+use core::{any::Any, ffi::CStr, marker::PhantomData};
 
 use ash::{ext, google, khr, vk};
 use parking_lot::Mutex;
@@ -3086,6 +3086,26 @@ impl crate::Adapter for super::Adapter {
         memory_hints: &wgt::MemoryHints,
     ) -> Result<crate::OpenDevice<super::Api>, crate::DeviceError> {
         unsafe { self.open_with_callback(features, limits, memory_hints, None) }
+    }
+
+    unsafe fn open_ext(
+        &self,
+        features: wgt::Features,
+        limits: &wgt::Limits,
+        memory_hints: &wgt::MemoryHints,
+        extensions: Vec<Box<dyn Any>>,
+    ) -> Result<crate::OpenDevice<super::Api>, crate::DeviceError> {
+        let mut callback: Option<Box<super::CreateDeviceCallback<'static>>> = None;
+        for extension in extensions {
+            match extension.downcast::<super::DeviceCreateCallback>() {
+                Ok(cb) => callback = Some(cb.0),
+                Err(other) => panic!(
+                    "unrecognized Vulkan device creation extension: {:?}",
+                    Any::type_id(&*other)
+                ),
+            }
+        }
+        unsafe { self.open_with_callback(features, limits, memory_hints, callback) }
     }
 
     unsafe fn texture_format_capabilities(

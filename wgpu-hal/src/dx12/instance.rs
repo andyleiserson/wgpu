@@ -1,4 +1,5 @@
-use alloc::{string::String, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
+use core::any::Any;
 
 use parking_lot::RwLock;
 use windows::Win32::{Foundation, Graphics::Dxgi};
@@ -165,12 +166,51 @@ impl crate::Instance for super::Instance {
 
     unsafe fn enumerate_adapters(
         &self,
-        _surface_hint: Option<&super::Surface>,
+        surface_hint: Option<&super::Surface>,
     ) -> Vec<crate::ExposedAdapter<super::Api>> {
+        unsafe { self.enumerate_adapters_ext(surface_hint, &[]) }
+    }
+
+    unsafe fn enumerate_adapters_ext(
+        &self,
+        _surface_hint: Option<&super::Surface>,
+        extensions: &[Box<dyn Any>],
+    ) -> Vec<crate::ExposedAdapter<super::Api>> {
+        // The only extension we recognize is an adapter filter, applied before a
+        // device is created on each adapter. Anything else is a programming error.
+        let mut filter: Option<&super::AdapterFilter> = None;
+        for extension in extensions {
+            match extension.downcast_ref::<super::AdapterFilter>() {
+                Some(f) => filter = Some(f),
+                None => panic!(
+                    "unrecognized DX12 adapter enumeration extension: {:?}",
+                    Any::type_id(&**extension)
+                ),
+            }
+        }
+
         let adapters = auxil::dxgi::factory::enumerate_adapters(self.factory.clone());
 
         adapters
             .into_iter()
+            .filter(|raw| {
+                let Some(filter) = filter else {
+                    return true;
+                };
+                // Read the adapter's identity without creating a device on it.
+                let desc = match unsafe { raw.GetDesc() } {
+                    Ok(desc) => desc,
+                    // If we can't read the description, keep the adapter rather
+                    // than silently dropping it.
+                    Err(_) => return true,
+                };
+                (filter.0)(&super::AdapterIdentity {
+                    luid_low_part: desc.AdapterLuid.LowPart,
+                    luid_high_part: desc.AdapterLuid.HighPart,
+                    vendor_id: desc.VendorId,
+                    device_id: desc.DeviceId,
+                })
+            })
             .filter_map(|raw| {
                 super::Adapter::expose(
                     raw,

@@ -92,7 +92,7 @@ mod suballocation;
 mod types;
 mod view;
 
-use alloc::{borrow::ToOwned as _, string::String, sync::Arc, vec::Vec};
+use alloc::{borrow::ToOwned as _, boxed::Box, string::String, sync::Arc, vec::Vec};
 use core::{ffi, fmt, mem, ops::Deref, sync::atomic::AtomicU64};
 
 use arrayvec::ArrayVec;
@@ -607,6 +607,40 @@ impl Adapter {
         &self.raw
     }
 }
+
+/// Identifying information about a DXGI adapter, passed to an [`AdapterFilter`].
+///
+/// The fields mirror the corresponding members of [`DXGI_ADAPTER_DESC`], read
+/// without creating a device on the adapter.
+///
+/// [`DXGI_ADAPTER_DESC`]: https://learn.microsoft.com/en-us/windows/win32/api/dxgi/ns-dxgi-dxgi_adapter_desc
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AdapterIdentity {
+    /// Low part of the adapter's locally unique identifier (`AdapterLuid.LowPart`).
+    pub luid_low_part: u32,
+    /// High part of the adapter's locally unique identifier (`AdapterLuid.HighPart`).
+    pub luid_high_part: i32,
+    /// The PCI ID of the hardware vendor (`VendorId`).
+    pub vendor_id: u32,
+    /// The PCI ID of the hardware device (`DeviceId`).
+    pub device_id: u32,
+}
+
+/// An adapter enumeration extension that filters which adapters are exposed.
+///
+/// Pass this (boxed as `Box<dyn core::any::Any>`) in the `extensions` argument
+/// of [`Instance::enumerate_adapters_ext`], or, from `wgpu-core`, via
+/// `request_adapter_ext`. The predicate is invoked once per DXGI adapter with
+/// its [`AdapterIdentity`]; adapters for which it returns `false` are skipped.
+///
+/// The predicate runs *before* a device is created on the adapter, so filtered
+/// adapters are never touched. This makes it possible to avoid probing GPUs the
+/// application will never use (see [#9932]).
+///
+/// [`Instance::enumerate_adapters_ext`]: crate::Instance::enumerate_adapters_ext
+/// [#9932]: https://github.com/gfx-rs/wgpu/issues/9932
+#[expect(missing_debug_implementations, reason = "contains a predicate")]
+pub struct AdapterFilter(pub Box<dyn Fn(&AdapterIdentity) -> bool>);
 
 struct Event(pub Foundation::HANDLE);
 impl Event {

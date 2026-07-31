@@ -1,4 +1,5 @@
 use alloc::{boxed::Box, vec::Vec};
+use core::any::Any;
 
 use crate::{Api, Capabilities, ExposedAdapter, Instance, InstanceError};
 
@@ -41,6 +42,12 @@ pub trait DynInstance: DynResource {
         &self,
         surface_hint: Option<&dyn DynSurface>,
     ) -> Vec<DynExposedAdapter>;
+
+    unsafe fn enumerate_adapters_ext(
+        &self,
+        surface_hint: Option<&dyn DynSurface>,
+        extensions: &[Box<dyn Any>],
+    ) -> Vec<DynExposedAdapter>;
 }
 
 impl<I: Instance + DynResource> DynInstance for I {
@@ -59,6 +66,23 @@ impl<I: Instance + DynResource> DynInstance for I {
     ) -> Vec<DynExposedAdapter> {
         let surface_hint = surface_hint.map(|s| s.expect_downcast_ref());
         unsafe { I::enumerate_adapters(self, surface_hint) }
+            .into_iter()
+            .map(|exposed| DynExposedAdapter {
+                adapter: Box::new(exposed.adapter),
+                info: exposed.info,
+                features: exposed.features,
+                capabilities: exposed.capabilities,
+            })
+            .collect()
+    }
+
+    unsafe fn enumerate_adapters_ext(
+        &self,
+        surface_hint: Option<&dyn DynSurface>,
+        extensions: &[Box<dyn Any>],
+    ) -> Vec<DynExposedAdapter> {
+        let surface_hint = surface_hint.map(|s| s.expect_downcast_ref());
+        unsafe { I::enumerate_adapters_ext(self, surface_hint, extensions) }
             .into_iter()
             .map(|exposed| DynExposedAdapter {
                 adapter: Box::new(exposed.adapter),

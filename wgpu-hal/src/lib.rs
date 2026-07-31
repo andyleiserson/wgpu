@@ -297,6 +297,7 @@ pub use dynamic::{
 use alloc::boxed::Box;
 use alloc::{borrow::Cow, string::String, vec::Vec};
 use core::{
+    any::Any,
     borrow::Borrow,
     error::Error,
     fmt,
@@ -668,6 +669,38 @@ pub trait Instance: Sized + WasmNotSendSync {
         &self,
         surface_hint: Option<&<Self::A as Api>::Surface>,
     ) -> Vec<ExposedAdapter<Self::A>>;
+
+    /// Enumerate the adapters exposed by this instance, passing backend-specific
+    /// extensions.
+    ///
+    /// This behaves like [`Instance::enumerate_adapters`], but additionally
+    /// accepts a list of backend-specific extension values that influence
+    /// enumeration. Each element is downcast to a concrete type the backend
+    /// recognizes (for example [`dx12::AdapterFilter`], which can skip adapters
+    /// before a device is created on them); see the backend's documentation for
+    /// the types it accepts. Passing an element whose type the backend does not
+    /// recognize panics.
+    ///
+    /// The default implementation panics if `extensions` is non-empty; backends
+    /// that support enumeration extensions override it.
+    ///
+    /// [`dx12::AdapterFilter`]: dx12/struct.AdapterFilter.html
+    ///
+    /// # Safety
+    ///
+    /// - Same as [`Instance::enumerate_adapters`].
+    /// - Each extension must uphold the safety contract documented on its type.
+    unsafe fn enumerate_adapters_ext(
+        &self,
+        surface_hint: Option<&<Self::A as Api>::Surface>,
+        extensions: &[Box<dyn Any>],
+    ) -> Vec<ExposedAdapter<Self::A>> {
+        assert!(
+            extensions.is_empty(),
+            "this backend does not support any adapter enumeration extensions"
+        );
+        unsafe { self.enumerate_adapters(surface_hint) }
+    }
 }
 
 pub trait Surface: WasmNotSendSync {
@@ -786,6 +819,42 @@ pub trait Adapter: WasmNotSendSync {
         limits: &wgt::Limits,
         memory_hints: &wgt::MemoryHints,
     ) -> Result<OpenDevice<Self::A>, DeviceError>;
+
+    /// Open a device, passing backend-specific extensions.
+    ///
+    /// This behaves like [`Adapter::open`], but additionally accepts a list of
+    /// backend-specific extension values which inform device creation. Each
+    /// element is downcast to a concrete type the backend recognizes (for
+    /// example [`vulkan::DeviceCreateCallback`]); see the backend's
+    /// documentation for the types it accepts. Passing an element whose type the
+    /// backend does not recognize panics.
+    ///
+    /// Extensions bypass the validation that a higher-level crate such as
+    /// `wgpu-core` would normally perform, so the caller is responsible for
+    /// upholding the safety contract documented on each extension type.
+    ///
+    /// The default implementation panics if `extensions` is non-empty; backends
+    /// that support device extensions override it.
+    ///
+    /// [`vulkan::DeviceCreateCallback`]: vulkan/struct.DeviceCreateCallback.html
+    ///
+    /// # Safety
+    ///
+    /// - Same as [`Adapter::open`].
+    /// - Each extension must uphold the safety contract documented on its type.
+    unsafe fn open_ext(
+        &self,
+        features: wgt::Features,
+        limits: &wgt::Limits,
+        memory_hints: &wgt::MemoryHints,
+        extensions: Vec<Box<dyn Any>>,
+    ) -> Result<OpenDevice<Self::A>, DeviceError> {
+        assert!(
+            extensions.is_empty(),
+            "this backend does not support any device creation extensions"
+        );
+        unsafe { self.open(features, limits, memory_hints) }
+    }
 
     /// Return the set of supported capabilities for a texture format.
     unsafe fn texture_format_capabilities(

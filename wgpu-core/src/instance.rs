@@ -1,5 +1,5 @@
 use alloc::{borrow::ToOwned as _, boxed::Box, string::String, sync::Arc, vec, vec::Vec};
-use core::fmt;
+use core::{any::Any, fmt};
 
 use hashbrown::HashMap;
 use thiserror::Error;
@@ -545,8 +545,48 @@ impl Instance {
         desc: &wgt::RequestAdapterOptions<&Surface>,
         backends: Backends,
     ) -> Result<Arc<Adapter>, wgt::RequestAdapterError> {
+        // SAFETY: An empty extension list imposes no additional safety
+        // requirements over the safe `request_adapter`.
+        unsafe { self.request_adapter_ext(desc, backends, Vec::new()) }
+    }
+
+    /// Request an adapter, passing backend-specific extensions.
+    ///
+    /// This behaves like [`Instance::request_adapter`], but additionally accepts
+    /// a list of backend-specific extension values, each tagged with the
+    /// [`Backend`] it targets. Each extension is passed only to the enumeration
+    /// of its target backend (e.g. a `dx12::AdapterFilter` to skip adapters
+    /// before a device is created on them), where it is downcast to a concrete
+    /// type that backend recognizes.
+    ///
+    /// # Safety
+    ///
+    /// - Each extension must uphold the safety contract documented on its type.
+    ///
+    /// # Panics
+    ///
+    /// - If any extension is tagged with a backend that is not enumerated (not
+    ///   requested in `backends`, or not available), so that it would otherwise
+    ///   be silently ignored.
+    /// - If a backend receives an extension whose type it does not recognize.
+    pub unsafe fn request_adapter_ext(
+        &self,
+        desc: &wgt::RequestAdapterOptions<&Surface>,
+        backends: Backends,
+        extensions: Vec<(Backend, Box<dyn Any>)>,
+    ) -> Result<Arc<Adapter>, wgt::RequestAdapterError> {
         profiling::scope!("Instance::request_adapter");
         api_log!("Instance::request_adapter");
+
+        // Group the extensions by their target backend so each backend's
+        // enumeration only sees the extensions meant for it.
+        let mut extensions_per_backend: HashMap<Backend, Vec<Box<dyn Any>>> = HashMap::new();
+        for (backend, extension) in extensions {
+            extensions_per_backend
+                .entry(backend)
+                .or_default()
+                .push(extension);
+        }
 
         let mut adapters = Vec::new();
         let mut incompatible_surface_backends = Backends::empty();
@@ -562,8 +602,11 @@ impl Instance {
                 .compatible_surface
                 .and_then(|surface| surface.raw(backend));
 
-            let mut backend_adapters =
-                unsafe { instance.enumerate_adapters(compatible_hal_surface) };
+            let backend_extensions = extensions_per_backend.remove(&backend).unwrap_or_default();
+
+            let mut backend_adapters = unsafe {
+                instance.enumerate_adapters_ext(compatible_hal_surface, &backend_extensions)
+            };
             if backend_adapters.is_empty() {
                 log::debug!("enabled backend `{backend:?}` has no adapters");
                 no_adapter_backends |= Backends::from(backend);
@@ -629,6 +672,17 @@ impl Instance {
             } else {
                 adapters.extend(backend_adapters);
             }
+        }
+
+        // Any extensions left over target a backend that was never enumerated,
+        // so they would have been silently ignored. That is almost certainly a
+        // mistake (e.g. a filter that would have prevented a device from being
+        // created), so fail loudly instead.
+        if let Some((&backend, _)) = extensions_per_backend.iter().next() {
+            panic!(
+                "`request_adapter_ext` was given extensions for backend {backend:?}, \
+                 which was not enumerated (not in `backends`, or unavailable)"
+            );
         }
 
         match desc.power_preference {
@@ -1286,6 +1340,31 @@ impl Adapter {
         self: &Arc<Self>,
         desc: &DeviceDescriptor,
     ) -> Result<(Arc<Device>, Arc<Queue>), RequestDeviceError> {
+        // SAFETY: An empty extension list imposes no additional safety
+        // requirements over the safe `request_device`.
+        unsafe { self.request_device_ext(desc, Vec::new()) }
+    }
+
+    /// Request a device, passing backend-specific extensions.
+    ///
+    /// This behaves like [`Adapter::request_device`], but additionally accepts a
+    /// list of backend-specific extension values which inform device creation
+    /// (e.g. a `vulkan::DeviceCreateCallback`). Each extension is downcast to
+    /// a concrete type this adapter's backend recognizes; the device is still
+    /// created through the normal, validated wgpu-core path.
+    ///
+    /// # Safety
+    ///
+    /// - Each extension must uphold the safety contract documented on its type.
+    ///
+    /// # Panics
+    ///
+    /// - If an extension's type is not recognized by this adapter's backend.
+    pub unsafe fn request_device_ext(
+        self: &Arc<Self>,
+        desc: &DeviceDescriptor,
+        extensions: Vec<Box<dyn Any>>,
+    ) -> Result<(Arc<Device>, Arc<Queue>), RequestDeviceError> {
         profiling::scope!("Adapter::request_device");
         api_log!("Adapter::request_device");
 
@@ -1293,10 +1372,11 @@ impl Adapter {
         self.validate_device_descriptor(&mut desc)?;
 
         let open = unsafe {
-            self.raw.adapter.open(
+            self.raw.adapter.open_ext(
                 desc.required_features,
                 &desc.required_limits,
                 &desc.memory_hints,
+                extensions,
             )
         }
         .map_err(DeviceError::from_hal)?;
@@ -1526,6 +1606,33 @@ impl Global {
         Ok(id)
     }
 
+    /// Request an adapter, passing backend-specific extensions.
+    ///
+    /// See [`crate::instance::Instance::request_adapter_ext`] for the meaning of
+    /// `extensions`.
+    ///
+    /// # Safety
+    ///
+    /// - Each extension must uphold the safety contract documented on its type.
+    pub unsafe fn request_adapter_ext(
+        &self,
+        desc: &RequestAdapterOptions,
+        backends: Backends,
+        id_in: Option<AdapterId>,
+        extensions: Vec<(Backend, Box<dyn Any>)>,
+    ) -> Result<AdapterId, wgt::RequestAdapterError> {
+        let compatible_surface = desc.compatible_surface.map(|id| self.surfaces.get(id));
+        let desc = wgt::RequestAdapterOptions {
+            power_preference: desc.power_preference,
+            force_fallback_adapter: desc.force_fallback_adapter,
+            compatible_surface: compatible_surface.as_deref(),
+            apply_limit_buckets: desc.apply_limit_buckets,
+        };
+        let adapter = unsafe { self.instance.request_adapter_ext(&desc, backends, extensions) }?;
+        let id = self.hub.adapters.prepare(id_in).assign(adapter);
+        Ok(id)
+    }
+
     /// Create an adapter from a HAL adapter.
     ///
     /// The HAL adapter may be obtained e.g. by calling `enumerate_adapters` on
@@ -1614,6 +1721,37 @@ impl Global {
 
         let adapter = self.hub.adapters.get(adapter_id);
         let (device, queue) = adapter.request_device(desc)?;
+
+        let device_id = device_fid.assign(device);
+        resource_log!("Created Device {:?}", device_id);
+
+        let queue_id = queue_fid.assign(queue);
+        resource_log!("Created Queue {:?}", queue_id);
+
+        Ok((device_id, queue_id))
+    }
+
+    /// Request a device, passing backend-specific extensions.
+    ///
+    /// See [`crate::instance::Adapter::request_device_ext`] for the meaning of
+    /// `extensions`.
+    ///
+    /// # Safety
+    ///
+    /// - Each extension must uphold the safety contract documented on its type.
+    pub unsafe fn adapter_request_device_ext(
+        &self,
+        adapter_id: AdapterId,
+        desc: &DeviceDescriptor,
+        device_id_in: Option<DeviceId>,
+        queue_id_in: Option<QueueId>,
+        extensions: Vec<Box<dyn Any>>,
+    ) -> Result<(DeviceId, QueueId), RequestDeviceError> {
+        let device_fid = self.hub.devices.prepare(device_id_in);
+        let queue_fid = self.hub.queues.prepare(queue_id_in);
+
+        let adapter = self.hub.adapters.get(adapter_id);
+        let (device, queue) = unsafe { adapter.request_device_ext(desc, extensions) }?;
 
         let device_id = device_fid.assign(device);
         resource_log!("Created Device {:?}", device_id);

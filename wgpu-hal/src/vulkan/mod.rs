@@ -1732,6 +1732,20 @@ where
 pub type CreateDeviceCallback<'this> =
     dyn for<'arg, 'pnext> FnOnce(CreateDeviceCallbackArgs<'arg, 'pnext, 'this>) + 'this;
 
+/// A device creation extension that installs a [`CreateDeviceCallback`],
+/// allowing Vulkan device creation parameters to be customized.
+///
+/// Pass this (boxed as `Box<dyn core::any::Any>`) in the `extensions` argument
+/// of [`Adapter::open_ext`], or, from `wgpu-core`, via `request_device_ext`.
+/// It is the [`Adapter::open_ext`] equivalent of the inherent
+/// [`Adapter::open_with_callback`] method; because it is stored as an
+/// [`Any`](core::any::Any), the callback must be `'static`.
+///
+/// [`Adapter::open_ext`]: crate::Adapter::open_ext
+/// [`Adapter::open_with_callback`]: Adapter::open_with_callback
+#[expect(missing_debug_implementations, reason = "contains a callback")]
+pub struct DeviceCreateCallback(pub Box<CreateDeviceCallback<'static>>);
+
 /// Arguments to the [`CreateInstanceCallback`].
 #[expect(missing_debug_implementations, reason = "TODO?")]
 pub struct CreateInstanceCallbackArgs<'arg, 'pnext, 'this>
