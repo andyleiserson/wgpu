@@ -181,7 +181,10 @@ impl crate::Instance for super::Instance {
         let mut filter: Option<&super::AdapterFilter> = None;
         for extension in extensions {
             match extension.downcast_ref::<super::AdapterFilter>() {
-                Some(f) => filter = Some(f),
+                Some(f) => {
+                    log::info!("enumerate_adapters_ext: using adapter filter");
+                    filter = Some(f);
+                }
                 None => panic!(
                     "unrecognized DX12 adapter enumeration extension: {:?}",
                     Any::type_id(&**extension)
@@ -202,14 +205,21 @@ impl crate::Instance for super::Instance {
                     Ok(desc) => desc,
                     // If we can't read the description, keep the adapter rather
                     // than silently dropping it.
-                    Err(_) => return true,
+                    Err(_) => {
+                        log::info!("enumerate_adapters_ext: failed to get adapter description, keeping adapter");
+                        return true;
+                    }
                 };
-                (filter.0)(&super::AdapterIdentity {
+                let res = (filter.0)(&super::AdapterIdentity {
                     luid_low_part: desc.AdapterLuid.LowPart,
                     luid_high_part: desc.AdapterLuid.HighPart,
                     vendor_id: desc.VendorId,
                     device_id: desc.DeviceId,
-                })
+                });
+                log::info!("enumerate_adapters_ext: filter returned {} for {:x}:{:x}",
+                    res, desc.VendorId, desc.DeviceId
+                );
+                res
             })
             .filter_map(|raw| {
                 super::Adapter::expose(

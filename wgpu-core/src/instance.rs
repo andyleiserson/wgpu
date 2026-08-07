@@ -722,9 +722,9 @@ impl Instance {
         // `request_adapter` can be a bit of a black box.
         // Shine some light on its decision in debug log.
         if adapters.is_empty() {
-            log::debug!("Request adapter didn't find compatible adapters.");
+            log::info!("Request adapter didn't find compatible adapters.");
         } else {
-            log::debug!(
+            log::info!(
                 "Found {} compatible adapters. Sorted by preference:",
                 adapters.len()
             );
@@ -1628,7 +1628,10 @@ impl Global {
             compatible_surface: compatible_surface.as_deref(),
             apply_limit_buckets: desc.apply_limit_buckets,
         };
-        let adapter = unsafe { self.instance.request_adapter_ext(&desc, backends, extensions) }?;
+        let adapter = unsafe {
+            self.instance
+                .request_adapter_ext(&desc, backends, extensions)
+        }?;
         let id = self.hub.adapters.prepare(id_in).assign(adapter);
         Ok(id)
     }
