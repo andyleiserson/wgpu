@@ -608,6 +608,84 @@ impl crate::ArraySize {
     }
 }
 
+/// Item type for the iterator returned by [`flatten_compose`].
+#[derive(Clone, Copy, Debug)]
+pub enum FlattenedComponent {
+    Zero,
+    Expression(crate::Handle<crate::Expression>),
+}
+
+#[derive(Clone, Copy, Debug)]
+enum FlattenedComponentRef<'c> {
+    Zero,
+    Expression(&'c crate::Handle<crate::Expression>),
+}
+
+impl From<FlattenedComponentRef<'_>> for FlattenedComponent {
+    fn from(value: FlattenedComponentRef) -> Self {
+        match value {
+            FlattenedComponentRef::Expression(handle) => Self::Expression(*handle),
+            FlattenedComponentRef::Zero => Self::Zero,
+        }
+    }
+}
+
+/// Internal helper for [`flatten_compose`].
+#[derive(Clone, Debug)]
+enum FlattenedComponents<'c> {
+    /// A vector `ZeroValue` being flattened into its parent.
+    Zeros(usize),
+    /// A single component.
+    Component(FlattenedComponentRef<'c>),
+    /// Any number of components.
+    Expressions(&'c [crate::Handle<crate::Expression>]),
+}
+
+impl<'c> IntoIterator for FlattenedComponents<'c> {
+    type Item = FlattenedComponentRef<'c>;
+    type IntoIter = EitherIter<
+        core::iter::RepeatN<FlattenedComponentRef<'c>>,
+        core::iter::Map<
+            core::slice::Iter<'c, crate::Handle<crate::Expression>>,
+            fn(&'c crate::Handle<crate::Expression>) -> FlattenedComponentRef<'c>,
+        >,
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            Self::Zeros(count) => {
+                EitherIter::Left(core::iter::repeat_n(FlattenedComponentRef::Zero, count))
+            }
+            Self::Component(component) => EitherIter::Left(core::iter::repeat_n(component, 1)),
+            Self::Expressions(slice) => {
+                EitherIter::Right(slice.iter().map(FlattenedComponentRef::Expression))
+            }
+        }
+    }
+}
+
+/// An iterator adapter that can store two different iterator types.
+#[derive(Clone)]
+enum EitherIter<L, R> {
+    Left(L),
+    Right(R),
+}
+
+impl<L, R, D> Iterator for EitherIter<L, R>
+where
+    L: Iterator<Item = D>,
+    R: Iterator<Item = D>,
+{
+    type Item = D;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match *self {
+            EitherIter::Left(ref mut inner) => inner.next(),
+            EitherIter::Right(ref mut inner) => inner.next(),
+        }
+    }
+}
+
 /// Return an iterator over the individual components assembled by a
 /// `Compose` expression.
 ///
@@ -620,12 +698,17 @@ impl crate::ArraySize {
 /// This function consults `ty` to decide if this concatenation is occurring,
 /// and returns an iterator that produces the components of the result of
 /// the `Compose` expression in either case.
+///
+/// The scalar zero expression needed to flatten `ZeroValue` expressions may
+/// not be present in the arena, so this function returns an iterator over
+/// `FlattenedComponent`s, which hold either an actual expression handle,
+/// or the placeholder `FlattenedComponent::Zero`.
 pub fn flatten_compose<'arenas>(
     ty: crate::Handle<crate::Type>,
     components: &'arenas [crate::Handle<crate::Expression>],
     expressions: &'arenas crate::Arena<crate::Expression>,
     types: &'arenas crate::UniqueArena<crate::Type>,
-) -> impl Iterator<Item = crate::Handle<crate::Expression>> + 'arenas {
+) -> impl Iterator<Item = FlattenedComponent> + 'arenas {
     // Returning `impl Iterator` is a bit tricky. We may or may not
     // want to flatten the components, but we have to settle on a
     // single concrete type to return. This function returns a single
@@ -639,37 +722,53 @@ pub fn flatten_compose<'arenas>(
 
     /// Flatten `Compose` expressions if `is_vector` is true.
     fn flatten_compose<'c>(
-        component: &'c crate::Handle<crate::Expression>,
+        component: FlattenedComponentRef<'c>,
         is_vector: bool,
         expressions: &'c crate::Arena<crate::Expression>,
-    ) -> &'c [crate::Handle<crate::Expression>] {
-        if is_vector {
-            if let crate::Expression::Compose {
-                ty: _,
-                components: ref subcomponents,
-            } = expressions[*component]
-            {
-                return subcomponents;
+        types: &'c crate::UniqueArena<crate::Type>,
+    ) -> FlattenedComponents<'c> {
+        match (is_vector, component) {
+            (true, FlattenedComponentRef::Expression(&expr)) => match expressions[expr] {
+                crate::Expression::Compose {
+                    ty: _,
+                    components: ref subcomponents,
+                } => {
+                    return FlattenedComponents::Expressions(subcomponents);
+                }
+                crate::Expression::ZeroValue(ty) => match types[ty].inner {
+                    crate::TypeInner::Vector { size, scalar: _ } => {
+                        return FlattenedComponents::Zeros(size as usize);
+                    }
+                    crate::TypeInner::Scalar(_) => {
+                        return FlattenedComponents::Zeros(1);
+                    }
+                    _ => {}
+                },
+                _ => {}
+            },
+            (true, FlattenedComponentRef::Zero) => {
+                return FlattenedComponents::Component(FlattenedComponentRef::Zero);
             }
+            (false, _) => {}
         }
-        core::slice::from_ref(component)
+        FlattenedComponents::Component(component)
     }
 
     /// Flatten `Splat` expressions if `is_vector` is true.
     fn flatten_splat<'c>(
-        component: &'c crate::Handle<crate::Expression>,
+        component: FlattenedComponentRef<'c>,
         is_vector: bool,
         expressions: &'c crate::Arena<crate::Expression>,
-    ) -> impl Iterator<Item = crate::Handle<crate::Expression>> {
-        let mut expr = *component;
+    ) -> impl Iterator<Item = FlattenedComponent> + 'c {
+        let mut inner_expr = component;
         let mut count = 1;
-        if is_vector {
-            if let crate::Expression::Splat { size, value } = expressions[expr] {
-                expr = value;
+        if let (true, FlattenedComponentRef::Expression(&outer_expr)) = (is_vector, component) {
+            if let crate::Expression::Splat { size, ref value } = expressions[outer_expr] {
+                inner_expr = FlattenedComponentRef::Expression(value);
                 count = size as usize;
             }
         }
-        core::iter::repeat_n(expr, count)
+        core::iter::repeat_n(inner_expr, count).map(FlattenedComponent::from)
     }
 
     // Expressions like `vec4(vec3(vec2(6, 7), 8), 9)` require us to
@@ -680,8 +779,9 @@ pub fn flatten_compose<'arenas>(
     // be a scalar, so we can stop there.
     components
         .iter()
-        .flat_map(move |component| flatten_compose(component, is_vector, expressions))
-        .flat_map(move |component| flatten_compose(component, is_vector, expressions))
+        .map(FlattenedComponentRef::Expression)
+        .flat_map(move |component| flatten_compose(component, is_vector, expressions, types))
+        .flat_map(move |component| flatten_compose(component, is_vector, expressions, types))
         .flat_map(move |component| flatten_splat(component, is_vector, expressions))
         .take(size)
 }
