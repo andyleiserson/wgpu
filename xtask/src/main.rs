@@ -21,8 +21,11 @@ const HELP: &str = "\
 Usage: xtask <COMMAND>
 
 Commands:
-  cts [<options>] [<test selector...> | -f <test list file...> | -- <args...>]
+  cts run [<options>] [<test selector...> | -f <test list file...> | -- <args...>]
     Check out, build, and run CTS tests
+
+    `run` is the default sub-subcommand, so `cargo xtask cts <args>` means
+    `cargo xtask cts run <args>`.
 
     If no command-line arguments are specified, runs as if `cts
     -f cts_runner/test.lst --print-output-when=test-fails` were
@@ -47,6 +50,25 @@ Commands:
                                 work in Deno, but some CTS tests for shaders and
                                 pipeline layouts are able to pass.
     --disable-external-texture  Disable the external-texture feature.
+
+  cts verify-selectors [<options>] [<test selector...>]
+    Verify that every CTS test selector is matched by exactly one line across
+    cts_runner/test.lst, fail.lst, and skip.lst.
+
+    A selector matched by no line has been added to the CTS without anyone
+    deciding whether wgpu passes it. A selector matched by several lines has an
+    ambiguous expectation, unless the lines say something consistent: a
+    `fails-if` in test.lst, or one line enumerating an exception to the other.
+
+    Both kinds of problem are reported as a minimal set of wildcard patterns
+    covering them, which can be pasted into an lst file.
+
+    If no test selector is specified, verifies `webgpu:api,validation,*` and
+    `webgpu:shader,validation,*`.
+
+    --skip-checkout             Don't check out the pinned CTS version, use whatever
+                                is already checked out.
+    --release                   Build the CTS runner in release mode
 
   run-wasm
     Build and run web examples

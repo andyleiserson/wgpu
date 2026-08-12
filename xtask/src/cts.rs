@@ -35,6 +35,7 @@
 //! ignored.
 
 mod run;
+mod verify_selectors;
 
 use anyhow::{bail, Context};
 use pico_args::Arguments;
@@ -84,7 +85,10 @@ pub fn run(
     match subcommand {
         Subcommand::Run => run::run_cts(shell, args, passthrough_args, stray_positional),
         Subcommand::VerifySelectors => {
-            anyhow::bail!("`cts verify-selectors` is not implemented yet")
+            if passthrough_args.is_some() {
+                bail!("`cts verify-selectors` does not accept passthrough arguments.");
+            }
+            verify_selectors::verify_selectors(shell, args, stray_positional)
         }
     }
 }
