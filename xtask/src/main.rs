@@ -167,7 +167,7 @@ fn main() -> anyhow::Result<ExitCode> {
 
     match subcommand.as_deref() {
         Some("changelog") => changelog::check_changelog(shell, args)?,
-        Some("cts") => cts::run_cts(shell, args, passthrough_args)?,
+        Some("cts") => cts::run(shell, args, passthrough_args)?,
         Some("run-wasm") => run_wasm::run_wasm(shell, args, passthrough_args)?,
         Some("miri") => miri::run_miri(shell, args)?,
         Some("test") => test::run_tests(shell, args, passthrough_args)?,
