@@ -3,11 +3,13 @@
 use anyhow::{anyhow, bail, Context};
 use core::fmt;
 use pico_args::Arguments;
-use regex_lite::{Regex, RegexBuilder};
-use std::{ffi::OsString, sync::LazyLock};
+use regex_lite::Regex;
+use std::ffi::OsString;
 use xshell::Shell;
 
-use crate::cts::{build_cts_runner, ensure_cts_checkout, CTS_BIN_ARGS, CTS_DEFAULT_TEST_LIST};
+use crate::cts::{
+    build_cts_runner, ensure_cts_checkout, parse_lst_line, CTS_BIN_ARGS, CTS_DEFAULT_TEST_LIST,
+};
 
 #[derive(Default)]
 struct TestLine {
@@ -144,33 +146,16 @@ pub fn run_cts(
     let output_filter = output_filter.unwrap_or(default_output_filter);
 
     for file in list_files {
-        tests.extend(shell.read_file(file)?.lines().filter_map(|line| {
-            static TEST_LINE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-                RegexBuilder::new(
-                    r#"(?:fails-if\s*\(\s*(?<fails_if>\w+(?:,\w+)*?)\s*\)\s+)?(?<selector>.*)"#,
-                )
-                .build()
-                .unwrap()
-            });
-
-            let trimmed = line.trim();
-            let is_comment = trimmed.starts_with("//") || trimmed.starts_with("#");
-            let captures = TEST_LINE_REGEX
-                .captures(trimmed)
-                .expect("Invalid test line: {trimmed}");
-            (!trimmed.is_empty() && !is_comment).then(|| TestLine {
-                selector: OsString::from(&captures["selector"]),
-                fails_if: captures
-                    .name("fails_if")
-                    .map(|m| {
-                        m.as_str()
-                            .split_terminator(',')
-                            .map(|m| m.to_string())
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-            })
-        }))
+        tests.extend(
+            shell
+                .read_file(file)?
+                .lines()
+                .filter_map(parse_lst_line)
+                .map(|line| TestLine {
+                    selector: OsString::from(line.selector),
+                    fails_if: line.fails_if,
+                }),
+        )
     }
 
     // Apply filter if specified

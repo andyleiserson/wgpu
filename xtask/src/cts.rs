@@ -38,10 +38,12 @@ mod run;
 
 use anyhow::{bail, Context};
 use pico_args::Arguments;
+use regex_lite::Regex;
 use std::{
     env,
     ffi::OsString,
     path::{Path, PathBuf},
+    sync::LazyLock,
 };
 use xshell::Shell;
 
@@ -90,6 +92,44 @@ pub fn run(
 enum Subcommand {
     Run,
     VerifySelectors,
+}
+
+/// A selector-bearing line parsed from a `.lst` test list file.
+struct LstLine {
+    selector: String,
+    /// Backends named in a `fails-if(...)` clause, empty if there was none.
+    fails_if: Vec<String>,
+}
+
+/// Parse one line of a `.lst` file, returning `None` for blank lines and lines
+/// that hold nothing but a comment.
+///
+/// Both `#` and `//` start a comment, which may either occupy the whole line or
+/// follow a selector on the same line.
+fn parse_lst_line(line: &str) -> Option<LstLine> {
+    static FAILS_IF_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^fails-if\s*\(\s*(\w+(?:,\w+)*)\s*\)\s+").unwrap());
+
+    let line = line.trim_start();
+    let line = line.split('#').next().unwrap();
+    if line.starts_with("//") {
+        return None;
+    }
+
+    let (fails_if, rest) = match FAILS_IF_REGEX.captures(line) {
+        Some(captures) => {
+            let backends = captures[1].split(',').map(str::to_string).collect();
+            (backends, &line[captures[0].len()..])
+        }
+        None => (Vec::new(), line),
+    };
+
+    let selector = rest.split("//").next().unwrap().trim();
+
+    (!selector.is_empty()).then(|| LstLine {
+        selector: selector.to_string(),
+        fails_if,
+    })
 }
 
 /// Check out the pinned CTS revision, cloning the CTS first if it isn't present.
@@ -276,4 +316,80 @@ pub fn build_cts_runner(
         .context("Failed to identify executable from cargo build output")?;
 
     Ok((bin, env_vars))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(line: &str) -> Option<(String, Vec<String>)> {
+        parse_lst_line(line).map(|l| (l.selector, l.fails_if))
+    }
+
+    fn selector(line: &str) -> String {
+        parse(line).expect("expected a selector").0
+    }
+
+    #[test]
+    fn test_parse_lst_line_skips_non_selectors() {
+        assert_eq!(parse(""), None);
+        assert_eq!(parse("   "), None);
+        assert_eq!(parse("// a comment"), None);
+        assert_eq!(parse("  // an indented comment"), None);
+        assert_eq!(parse("# a comment"), None);
+        assert_eq!(parse("  # an indented comment"), None);
+    }
+
+    #[test]
+    fn test_parse_lst_line_selectors() {
+        assert_eq!(
+            selector("webgpu:api,validation,buffer,mapping:*"),
+            "webgpu:api,validation,buffer,mapping:*"
+        );
+        assert_eq!(selector("  webgpu:foo:*  "), "webgpu:foo:*");
+        assert_eq!(selector("unittests:*"), "unittests:*");
+    }
+
+    #[test]
+    fn test_parse_lst_line_strips_inline_comments() {
+        assert_eq!(selector("webgpu:foo:* // crash"), "webgpu:foo:*");
+        assert_eq!(selector("webgpu:foo:*// crash"), "webgpu:foo:*");
+        assert_eq!(selector("webgpu:foo:* # crash"), "webgpu:foo:*");
+        // Only the first `//` starts the comment, so URLs within it are harmless.
+        assert_eq!(
+            selector("webgpu:foo:* // see https://github.com/gfx-rs/wgpu/issues/9455"),
+            "webgpu:foo:*"
+        );
+        // `#` is stripped before `//`, so a `#` inside a comment is also harmless.
+        assert_eq!(
+            selector("webgpu:foo:* // missing const eval (#4507)"),
+            "webgpu:foo:*"
+        );
+    }
+
+    #[test]
+    fn test_parse_lst_line_fails_if() {
+        assert_eq!(
+            parse("fails-if(vulkan) webgpu:foo:*"),
+            Some(("webgpu:foo:*".into(), vec!["vulkan".into()]))
+        );
+        assert_eq!(
+            parse("fails-if(dx12,vulkan,metal) webgpu:foo:*"),
+            Some((
+                "webgpu:foo:*".into(),
+                vec!["dx12".into(), "vulkan".into(), "metal".into()]
+            ))
+        );
+        // Whitespace around the parentheses is tolerated.
+        assert_eq!(
+            parse("fails-if ( vulkan )  webgpu:foo:*"),
+            Some(("webgpu:foo:*".into(), vec!["vulkan".into()]))
+        );
+        assert_eq!(
+            parse("fails-if(vulkan) webgpu:foo:* // and it crashes"),
+            Some(("webgpu:foo:*".into(), vec!["vulkan".into()]))
+        );
+        // A `fails-if` clause with no selector after it is not a selector line.
+        assert_eq!(parse("fails-if(vulkan) // nothing here"), None);
+    }
 }
