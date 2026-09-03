@@ -1,6 +1,7 @@
 //! [`Backend`], [`Backends`], and backend-specific options.
 
-use alloc::string::{String, ToString};
+use alloc::{boxed::Box, string::{String, ToString}};
+use dyn_clone::DynClone;
 use core::{hash::Hash, str::FromStr};
 
 use macro_rules_attribute::derive;
@@ -69,8 +70,15 @@ pub enum Backend {
 }
 
 impl Backend {
+    /// The number of defined [`Backend`]s.
+    ///
+    /// Note that although [`Backend`] can represent the full set of backends,
+    /// each actual backend can be excluded at compile time, or lack support on
+    /// the current platform.
+    pub const COUNT: usize = Backends::all().bits().count_ones() as usize;
+
     /// Array of all [`Backend`] values, corresponding to [`Backends::all()`].
-    pub const ALL: [Backend; Backends::all().bits().count_ones() as usize] = [
+    pub const ALL: [Backend; Self::COUNT] = [
         Self::Noop,
         Self::Vulkan,
         Self::Metal,
@@ -221,6 +229,60 @@ impl Backends {
     }
 }
 
+pub trait BackendMapValue<M: ?Sized>: DynClone + core::any::Any + Send + Sync {
+    const BACKEND: Backend;
+}
+
+/// Map of per-backend values.
+///
+/// Backend map types are used to pass per-backend backend-defined data through higher-level
+/// APIs. This is used for contexts like `request_adapter` where a specific backend has
+/// not yet been selected. Dynamic typing is used to avoid conditional compilation or
+/// dependencies on specific hals.
+///
+/// The map is keyed by [`Backend`]s. The value type is determined by `M`, which is
+/// typically `dyn SomeTrait`, where `SomeTrait` is implemented by the value type for each
+/// backend.
+///
+/// The map assumes that each backend has a distinct value type, thus it is possible to
+/// uniquely index the map by specifying only a value type, without also specifying a
+/// [`Backend`].
+pub struct BackendMap<M: ?Sized> {
+    data: [Option<Box<dyn core::any::Any>>; Backend::COUNT],
+    _phantom: core::marker::PhantomData<M>,
+}
+
+impl<M: ?Sized> Default for BackendMap<M> {
+    fn default() -> Self {
+        Self {
+            data: core::array::from_fn(|_| None),
+            _phantom: core::marker::PhantomData,
+        }
+    }
+}
+
+impl<M: ?Sized> BackendMap<M> {
+    /// Get the map value associated with a particular backend.
+    pub fn get<T: BackendMapValue<M>>(&self) -> Option<&T> {
+        self.data[T::BACKEND as usize]
+            .as_ref()
+            .map(|value| value.downcast_ref::<T>().unwrap())
+    }
+
+    /// Remove and return the map value associated with a particular backend.
+    pub fn remove<T: BackendMapValue<M>>(&mut self) -> Option<Box<T>> {
+        self.data[T::BACKEND as usize]
+            .take()
+            .map(|value| value.downcast::<T>().unwrap())
+    }
+
+    /// Set the map value associated with a particular backend, discarding any previous value.
+    pub fn set<T: BackendMapValue<M>>(mut self, value: Box<T>) -> Self {
+        self.data[T::BACKEND as usize] = Some(value);
+        self
+    }
+}
+
 /// Options that are passed to a given backend.
 ///
 /// Part of [`InstanceDescriptor`].
@@ -284,6 +346,14 @@ pub struct GlBackendOptions {
     /// [`InstanceFlags::DISCARD_HAL_LABELS`]: crate::InstanceFlags::DISCARD_HAL_LABELS
     pub debug_fns: GlDebugFns,
 }
+
+#[allow(unused)]
+trait PerBackendType {
+    type Value;
+}
+
+#[allow(unused)]
+struct PerBackendTypeAssignment<M: ?Sized, const B: usize>(core::marker::PhantomData<M>);
 
 impl GlBackendOptions {
     /// Choose OpenGL backend options by calling `from_env` on every field.

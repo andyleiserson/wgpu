@@ -59,6 +59,7 @@ naga-types = { workspace = true, features = [] }
 
 bitflags.workspace = true
 bytemuck = { workspace = true, features = ["derive"] }
+dyn-clone = { workspace = true }
 exhaust = { workspace = true, optional = true }
 log.workspace = true
 macro_rules_attribute.workspace = true
