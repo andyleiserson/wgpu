@@ -229,11 +229,28 @@ impl Backends {
     }
 }
 
-pub trait BackendType: core::fmt::Debug + DynClone + core::any::Any + Send + Sync { }
+/// dyn-compatible trait implemented by the value types stored in a [`BackendMap`].
+///
+/// This is the type of the trait objects stored in the map, and is used
+/// as a trait bound in the implementations of `Clone`, `Debug`, and similar
+/// for value types.
+///
+/// This trait should usually be implemented with the assistance of the
+/// [`backend_map_type!`] macro.
+pub trait DynBackendMapValue<M: ?Sized>: core::any::Any { }
 
-impl<T: core::fmt::Debug + DynClone + core::any::Any + Send + Sync> BackendType for T { }
-
-pub trait BackendMapValue<M: ?Sized>: BackendType {
+/// Non-dyn-compatible trait implemented by the value types stored in a [`BackendMap`].
+///
+/// This trait is required on the type parameter on the methods for getting and setting
+/// values in the map. It defines the `BACKEND` associated constant, which allows
+/// specifying just the backend-specific value type, rather redundantly specifying both
+/// both the type and index, when accessing the map. However, the associated constant is not
+/// dyn-compatible, so a separate trait must be used for trait objects.
+///
+/// This trait should usually be implemented with the assistance of the
+/// [`backend_map_type!`] macro.
+pub trait BackendMapValue<M: ?Sized>: DynBackendMapValue<M> {
+    /// The backend associated with this value type.
     const BACKEND: Backend;
 }
 
@@ -252,15 +269,13 @@ pub trait BackendMapValue<M: ?Sized>: BackendType {
 /// uniquely index the map by specifying only a value type, without also specifying a
 /// [`Backend`].
 pub struct BackendMap<M: ?Sized> {
-    data: [Option<Box<dyn BackendType>>; Backend::COUNT],
-    _phantom: core::marker::PhantomData<M>,
+    data: [Option<Box<dyn DynBackendMapValue<M>>>; Backend::COUNT],
 }
 
 impl<M: ?Sized> Default for BackendMap<M> {
     fn default() -> Self {
         Self {
             data: core::array::from_fn(|_| None),
-            _phantom: core::marker::PhantomData,
         }
     }
 }
@@ -293,19 +308,27 @@ impl<M: ?Sized> BackendMap<M> {
     }
 }
 
-impl<M: BackendType + ?Sized> Clone for BackendMap<M> {
+impl<M: ?Sized> Clone for BackendMap<M>
+where
+    dyn DynBackendMapValue<M>: DynClone,
+{
     fn clone(&self) -> Self {
         let data = core::array::from_fn(|i| {
-            self.data[i].as_ref().map(|value| {
-                let value: &dyn BackendType = value.as_ref();
-                clone_box(value)
-            })
+            self.data[i].as_ref().map(|value| clone_box(value.as_ref()))
         });
         Self {
             data,
-            _phantom: core::marker::PhantomData,
         }
      }
+}
+
+impl<M: ?Sized> core::fmt::Debug for BackendMap<M>
+where
+    dyn DynBackendMapValue<M>: core::fmt::Debug,
+{
+    fn fmt(&self, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        todo!()
+    }
 }
 
 /// Options that are passed to a given backend.
