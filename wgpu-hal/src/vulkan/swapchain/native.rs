@@ -1,18 +1,16 @@
 //! Vulkan Surface and Swapchain implementation using native Vulkan surfaces.
 
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use dyn_clone::clone_box;
 use core::any::Any;
 
 use ash::{khr, vk};
 use wgpu_sync::{Mutex, MutexGuard};
 
 use crate::vulkan::{
-    conv, map_host_device_oom_and_lost_err,
-    semaphore_list::SemaphoreType,
-    swapchain::{
+    DeviceShared, InstanceShared, PnextChain, conv, map_host_device_oom_and_lost_err, semaphore_list::SemaphoreType, swapchain::{
         Surface, SurfaceTextureMetadata, Swapchain, SwapchainSubmissionSemaphoreGuard, WindowHandle,
-    },
-    DeviceShared, InstanceShared, PnextChain,
+    }
 };
 
 pub(crate) struct NativeSurface {
@@ -23,12 +21,6 @@ pub(crate) struct NativeSurface {
     /// query; `None` for non-Win32 surfaces.
     #[cfg(windows)]
     hdr_source: Option<crate::auxil::dxgi::hdr::DxgiHdrSource>,
-    /// A caller-provided `pNext` chain to attach to the [`vk::SwapchainCreateInfoKHR`]
-    /// of the next swapchain created for this surface.
-    ///
-    /// Set only through
-    /// [`Surface::set_next_swapchain_create_chain()`](crate::vulkan::Surface::set_next_swapchain_create_chain).
-    next_swapchain_create_chain: Mutex<Option<PnextChain>>,
 }
 
 impl NativeSurface {
@@ -46,19 +38,11 @@ impl NativeSurface {
             instance: Arc::clone(&instance.shared),
             #[cfg(windows)]
             hdr_source: hwnd.map(|wh| crate::auxil::dxgi::hdr::DxgiHdrSource::new(wh.0)),
-            next_swapchain_create_chain: Mutex::new(None),
         }
     }
 
     pub fn as_raw(&self) -> vk::SurfaceKHR {
         self.raw
-    }
-
-    /// # Safety
-    ///
-    /// See [`Surface::set_next_swapchain_create_chain()`](crate::vulkan::Surface::set_next_swapchain_create_chain).
-    pub unsafe fn set_next_swapchain_create_chain(&self, chain: *mut core::ffi::c_void) {
-        *self.next_swapchain_create_chain.lock() = Some(PnextChain::new(chain));
     }
 }
 
@@ -200,6 +184,22 @@ impl Surface for NativeSurface {
         provided_old_swapchain: Option<Box<dyn Swapchain>>,
     ) -> Result<Box<dyn Swapchain>, crate::SurfaceError> {
         profiling::scope!("Device::create_swapchain");
+
+        let mut config = crate::SurfaceConfiguration::<crate::vulkan::VulkanSurfaceConfiguration> {
+            maximum_frame_latency: config.maximum_frame_latency,
+            present_mode: config.present_mode,
+            composite_alpha_mode: config.composite_alpha_mode,
+            format: config.format,
+            color_space: config.color_space,
+            extent: config.extent,
+            usage: config.usage,
+            view_formats: config.view_formats.clone(),
+            raw: config.raw.as_ref().map(|value| {
+                let cloned = clone_box(value.as_ref());
+                Box::<dyn Any>::downcast(cloned).unwrap()
+            }),
+        };
+
         let functor = khr::swapchain::Device::new(&self.instance.raw, &device.shared.raw);
 
         let old_swapchain = provided_old_swapchain
@@ -247,11 +247,15 @@ impl Surface for NativeSurface {
             info = info.push_next(&mut format_list_info);
         }
 
-        let create_chain = self.next_swapchain_create_chain.lock().take();
-        if let Some(chain) = create_chain {
+        if let Some(create_chain) = config
+            .raw
+            .as_mut()
+            .and_then(|raw| raw.swapchain_create_chain.take())
+        {
+            // TODO: update this safety comment
             // SAFETY: The contract on `Surface::set_next_swapchain_create_chain()` keeps
             // the chain valid and unaliased until this swapchain creation returns.
-            info.p_next = unsafe { chain.splice_into(info.p_next) };
+            info.p_next = unsafe { PnextChain::new(create_chain).splice_into(info.p_next) };
         }
 
         let result = {
@@ -315,7 +319,7 @@ impl Surface for NativeSurface {
             device: Arc::clone(&device.shared),
             images,
             fence,
-            config: config.clone(),
+            config,
             acquire_semaphores,
             next_acquire_index: 0,
             present_semaphores,
@@ -341,7 +345,7 @@ pub(crate) struct NativeSwapchain {
     images: Vec<vk::Image>,
     /// Fence used to wait on the acquired image.
     fence: Option<vk::Fence>,
-    config: crate::SurfaceConfiguration,
+    config: crate::SurfaceConfiguration<crate::vulkan::VulkanSurfaceConfiguration>,
 
     /// Semaphores used between image acquisition and the first submission
     /// that uses that image. This is indexed using [`next_acquire_index`].

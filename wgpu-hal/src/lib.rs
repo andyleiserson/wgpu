@@ -2761,8 +2761,8 @@ pub struct RayTracingPipelineDescriptor<
     pub cache: Option<&'a Pc>,
 }
 
-#[derive(Debug, Clone)]
-pub struct SurfaceConfiguration {
+#[derive(Debug)]
+pub struct SurfaceConfiguration<R: ?Sized = dyn RawSurfaceConfiguration> {
     /// Maximum number of queued frames. Must be in
     /// `SurfaceCapabilities::maximum_frame_latency` range.
     pub maximum_frame_latency: u32,
@@ -2786,7 +2786,27 @@ pub struct SurfaceConfiguration {
     /// Allows views of swapchain texture to have a different format
     /// than the texture does.
     pub view_formats: Vec<wgt::TextureFormat>,
+    /// Raw (platform-specific) surface configuration
+    pub raw: Option<Box<R>>,
 }
+
+impl<R: Clone> Clone for SurfaceConfiguration<R> {
+    fn clone(&self) -> Self {
+        Self {
+            maximum_frame_latency: self.maximum_frame_latency,
+            present_mode: self.present_mode,
+            composite_alpha_mode: self.composite_alpha_mode,
+            format: self.format,
+            color_space: self.color_space,
+            extent: self.extent,
+            usage: self.usage,
+            view_formats: self.view_formats.clone(),
+            raw: self.raw.clone(),
+        }
+    }
+}
+
+pub trait RawSurfaceConfiguration: fmt::Debug + dyn_clone::DynClone + core::any::Any + Send + Sync { }
 
 #[derive(Debug, Clone)]
 pub struct Rect<T> {

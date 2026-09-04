@@ -1,4 +1,5 @@
 use alloc::{borrow::ToOwned as _, boxed::Box, string::String, sync::Arc, vec, vec::Vec};
+use hal::RawSurfaceConfiguration;
 use core::fmt;
 
 use hashbrown::HashMap;
@@ -861,6 +862,28 @@ impl Surface {
         device: &Arc<Device>,
         config: &wgt::SurfaceConfiguration<Vec<wgt::TextureFormat>>,
     ) -> Option<ConfigureSurfaceError> {
+        unsafe {
+            // SAFETY: Passing `None` for `raw_config` is safe.
+            self.configure_ext(device, config, None)
+        }
+    }
+
+    /// Configure the surface, passing platform-specific configuration.
+    ///
+    /// # Safety
+    ///
+    /// - If `raw_config` is `Some`, it must satisfy any safety requirements
+    ///   applicable to its type. Passing `None` for `raw_config` is safe.
+    ///
+    /// # Panics
+    ///
+    /// - If `raw_config` does not have the correct type for this adapter.
+    pub unsafe fn configure_ext(
+        self: &Arc<Self>,
+        device: &Arc<Device>,
+        config: &wgt::SurfaceConfiguration<Vec<wgt::TextureFormat>>,
+        raw_config: Option<Box<dyn RawSurfaceConfiguration>>,
+    ) -> Option<ConfigureSurfaceError> {
         use ConfigureSurfaceError as E;
         profiling::scope!("Surface::configure");
 
@@ -934,6 +957,7 @@ impl Surface {
                             | wgt::TextureFormatFeatureFlags::STORAGE_READ_WRITE,
                     ),
                     view_formats: hal_view_formats,
+                    raw: raw_config,
                 };
 
                 if let Err(error) = crate::device::surface_config::validate_surface_configuration(

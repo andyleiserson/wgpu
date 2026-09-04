@@ -41,6 +41,9 @@ impl<S: Surface + DynResource> DynSurface for S {
         device: &dyn DynDevice,
         config: &SurfaceConfiguration,
     ) -> Result<(), SurfaceError> {
+        // Normally, we would downcast `config.raw` here as well, but surfaces are special
+        // because Vulkan can have either a native or DXGI swapchain, so we defer
+        // downcasting to the backend.
         let device = device.expect_downcast_ref();
         unsafe { S::configure(self, device, config) }
     }

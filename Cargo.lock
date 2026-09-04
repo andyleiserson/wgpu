@@ -4973,6 +4973,7 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "drm",
+ "dyn-clone",
  "env_logger",
  "glam",
  "glow",
