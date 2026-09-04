@@ -1,7 +1,7 @@
 //! [`Backend`], [`Backends`], and backend-specific options.
 
 use alloc::{boxed::Box, string::{String, ToString}};
-use dyn_clone::DynClone;
+use dyn_clone::{DynClone, clone_box};
 use core::{hash::Hash, str::FromStr};
 
 use macro_rules_attribute::derive;
@@ -229,7 +229,11 @@ impl Backends {
     }
 }
 
-pub trait BackendMapValue<M: ?Sized>: DynClone + core::any::Any + Send + Sync {
+pub trait BackendType: core::fmt::Debug + DynClone + core::any::Any + Send + Sync { }
+
+impl<T: core::fmt::Debug + DynClone + core::any::Any + Send + Sync> BackendType for T { }
+
+pub trait BackendMapValue<M: ?Sized>: BackendType {
     const BACKEND: Backend;
 }
 
@@ -248,7 +252,7 @@ pub trait BackendMapValue<M: ?Sized>: DynClone + core::any::Any + Send + Sync {
 /// uniquely index the map by specifying only a value type, without also specifying a
 /// [`Backend`].
 pub struct BackendMap<M: ?Sized> {
-    data: [Option<Box<dyn core::any::Any>>; Backend::COUNT],
+    data: [Option<Box<dyn BackendType>>; Backend::COUNT],
     _phantom: core::marker::PhantomData<M>,
 }
 
@@ -266,14 +270,20 @@ impl<M: ?Sized> BackendMap<M> {
     pub fn get<T: BackendMapValue<M>>(&self) -> Option<&T> {
         self.data[T::BACKEND as usize]
             .as_ref()
-            .map(|value| value.downcast_ref::<T>().unwrap())
+            .map(|value| {
+                let value: &dyn core::any::Any = value.as_ref();
+                value.downcast_ref::<T>().unwrap()
+            })
     }
 
     /// Remove and return the map value associated with a particular backend.
     pub fn remove<T: BackendMapValue<M>>(&mut self) -> Option<Box<T>> {
         self.data[T::BACKEND as usize]
             .take()
-            .map(|value| value.downcast::<T>().unwrap())
+            .map(|value| {
+                let value: Box<dyn core::any::Any> = value;
+                value.downcast::<T>().unwrap()
+            })
     }
 
     /// Set the map value associated with a particular backend, discarding any previous value.
@@ -281,6 +291,21 @@ impl<M: ?Sized> BackendMap<M> {
         self.data[T::BACKEND as usize] = Some(value);
         self
     }
+}
+
+impl<M: BackendType + ?Sized> Clone for BackendMap<M> {
+    fn clone(&self) -> Self {
+        let data = core::array::from_fn(|i| {
+            self.data[i].as_ref().map(|value| {
+                let value: &dyn BackendType = value.as_ref();
+                clone_box(value)
+            })
+        });
+        Self {
+            data,
+            _phantom: core::marker::PhantomData,
+        }
+     }
 }
 
 /// Options that are passed to a given backend.
