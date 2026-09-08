@@ -88,8 +88,17 @@ impl core::borrow::Borrow<dyn crate::DynTexture> for Resource {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct NoopAdapterOptions;
+
+impl wgt::BackendMapValue<dyn wgt::BackendAdapterOptions> for NoopAdapterOptions {
+    const BACKEND: wgt::Backend = wgt::Backend::Noop;
+}
+
 impl crate::Instance for Context {
     type A = Api;
+
+    type AdapterOptions = NoopAdapterOptions;
 
     unsafe fn init(desc: &crate::InstanceDescriptor<'_>) -> Result<Self, crate::InstanceError> {
         let options = Arc::new(desc.backend_options.noop.clone());
@@ -113,6 +122,7 @@ impl crate::Instance for Context {
     unsafe fn enumerate_adapters(
         &self,
         _surface_hint: Option<&Context>,
+        _options: Option<&Self::AdapterOptions>,
     ) -> Vec<crate::ExposedAdapter<Api>> {
         let device_type = self.options.device_type.unwrap_or(wgt::DeviceType::Other);
         let subgroup_min_size = self

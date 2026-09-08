@@ -682,6 +682,9 @@ pub trait Api: Clone + fmt::Debug + Sized + WasmNotSendSync + 'static {
 pub trait Instance: Sized + WasmNotSendSync {
     type A: Api;
 
+    // TODO: should probably move to Api
+    type AdapterOptions: wgt::BackendMapValue<dyn wgt::BackendAdapterOptions>;
+
     unsafe fn init(desc: &InstanceDescriptor<'_>) -> Result<Self, InstanceError>;
     unsafe fn create_surface(
         &self,
@@ -692,6 +695,7 @@ pub trait Instance: Sized + WasmNotSendSync {
     unsafe fn enumerate_adapters(
         &self,
         surface_hint: Option<&<Self::A as Api>::Surface>,
+        options: Option<&Self::AdapterOptions>,
     ) -> Vec<ExposedAdapter<Self::A>>;
 }
 

@@ -450,6 +450,8 @@ fn create_instance_device() -> Result<InstanceDevice, crate::InstanceError> {
 impl crate::Instance for Instance {
     type A = super::Api;
 
+    type AdapterOptions = GlAdapterOptions;
+
     unsafe fn init(desc: &crate::InstanceDescriptor<'_>) -> Result<Self, crate::InstanceError> {
         profiling::scope!("Init OpenGL (WGL) Backend");
         let opengl_module =
@@ -590,6 +592,7 @@ impl crate::Instance for Instance {
     unsafe fn enumerate_adapters(
         &self,
         _surface_hint: Option<&Surface>,
+        _options: Option<&Self::AdapterOptions>,
     ) -> Vec<crate::ExposedAdapter<super::Api>> {
         unsafe {
             super::Adapter::expose(

@@ -135,6 +135,13 @@ impl OsFeatures {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct MetalAdapterOptions;
+
+impl wgt::BackendMapValue<dyn wgt::BackendAdapterOptions> for MetalAdapterOptions {
+    const BACKEND: wgt::Backend = wgt::Backend::Metal;
+}
+
 #[derive(Debug)]
 pub struct Instance {
     flags: wgt::InstanceFlags,
@@ -148,6 +155,8 @@ impl Instance {
 
 impl crate::Instance for Instance {
     type A = Api;
+
+    type AdapterOptions = MetalAdapterOptions;
 
     unsafe fn init(desc: &crate::InstanceDescriptor<'_>) -> Result<Self, crate::InstanceError> {
         profiling::scope!("Init Metal Backend");
@@ -189,6 +198,7 @@ impl crate::Instance for Instance {
     unsafe fn enumerate_adapters(
         &self,
         _surface_hint: Option<&Surface>,
+        _options: Option<&Self::AdapterOptions>,
     ) -> Vec<crate::ExposedAdapter<Api>> {
         let devices = objc2_metal::MTLCopyAllDevices();
         let instance_flags = self.flags;
