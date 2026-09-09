@@ -142,6 +142,11 @@ impl wgt::BackendMapValue<dyn wgt::BackendAdapterOptions> for MetalAdapterOption
     const BACKEND: wgt::Backend = wgt::Backend::Metal;
 }
 
+#[derive(Clone, Debug)]
+pub struct MetalDeviceOptions;
+
+impl wgt::BackendDeviceOptions for MetalDeviceOptions {}
+
 #[derive(Debug)]
 pub struct Instance {
     flags: wgt::InstanceFlags,

@@ -1,6 +1,6 @@
 #![allow(unused_variables)]
 
-use alloc::{string::String, sync::Arc, vec, vec::Vec};
+use alloc::{boxed::Box, string::String, sync::Arc, vec, vec::Vec};
 use core::{ptr, sync::atomic::Ordering, time::Duration};
 
 use wgpu_sync::atomic::AtomicU64;
@@ -94,6 +94,11 @@ pub struct NoopAdapterOptions;
 impl wgt::BackendMapValue<dyn wgt::BackendAdapterOptions> for NoopAdapterOptions {
     const BACKEND: wgt::Backend = wgt::Backend::Noop;
 }
+
+#[derive(Clone, Debug)]
+pub struct NoopDeviceOptions;
+
+impl wgt::BackendDeviceOptions for NoopDeviceOptions {}
 
 impl crate::Instance for Context {
     type A = Api;
@@ -227,11 +232,14 @@ impl crate::Surface for Context {
 impl crate::Adapter for Context {
     type A = Api;
 
+    type DeviceOptions = NoopDeviceOptions;
+
     unsafe fn open(
         &self,
         features: wgt::Features,
         _limits: &wgt::Limits,
         _memory_hints: &wgt::MemoryHints,
+        _options: Option<Box<NoopDeviceOptions>>,
     ) -> DeviceResult<crate::OpenDevice<Api>> {
         Ok(crate::OpenDevice {
             device: Context {
