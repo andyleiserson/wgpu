@@ -135,17 +135,19 @@ impl OsFeatures {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct MetalAdapterOptions;
-
-impl wgt::BackendMapValue<dyn wgt::BackendAdapterOptions> for MetalAdapterOptions {
-    const BACKEND: wgt::Backend = wgt::Backend::Metal;
+crate::adapter_options! {
+    /// Options for enumerating Metal adapters.
+    #[backend(wgt::Backend::Metal)]
+    #[derive(Clone, Debug)]
+    pub struct MetalAdapterOptions;
 }
 
-#[derive(Clone, Debug)]
-pub struct MetalDeviceOptions;
-
-impl wgt::BackendDeviceOptions for MetalDeviceOptions {}
+crate::device_options! {
+    /// Options for opening Metal devices.
+    #[backend(wgt::Backend::Metal)]
+    #[derive(Clone, Debug)]
+    pub struct MetalDeviceOptions;
+}
 
 #[derive(Debug)]
 pub struct Instance {

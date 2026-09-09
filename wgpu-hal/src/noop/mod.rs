@@ -88,17 +88,19 @@ impl core::borrow::Borrow<dyn crate::DynTexture> for Resource {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct NoopAdapterOptions;
-
-impl wgt::BackendMapValue<dyn wgt::BackendAdapterOptions> for NoopAdapterOptions {
-    const BACKEND: wgt::Backend = wgt::Backend::Noop;
+crate::adapter_options! {
+    /// Options for enumerating Noop adapters.
+    #[backend(wgt::Backend::Noop)]
+    #[derive(Clone, Debug)]
+    pub struct NoopAdapterOptions;
 }
 
-#[derive(Clone, Debug)]
-pub struct NoopDeviceOptions;
-
-impl wgt::BackendDeviceOptions for NoopDeviceOptions {}
+crate::device_options!{
+    /// Options for opening Noop devices.
+    #[backend(wgt::Backend::Noop)]
+    #[derive(Clone, Debug)]
+    pub struct NoopDeviceOptions;
+}
 
 impl crate::Instance for Context {
     type A = Api;

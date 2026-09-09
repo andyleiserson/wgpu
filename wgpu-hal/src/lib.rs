@@ -309,7 +309,7 @@ use bitflags::bitflags;
 use raw_window_handle::DisplayHandle;
 use thiserror::Error;
 use wgpu_sync::Arc;
-use wgt::WasmNotSendSync;
+use wgt::{WasmNotSendSync, backend_map_type, backend_type};
 
 // - Vertex + Fragment
 // - Compute
@@ -678,6 +678,20 @@ pub trait Api: Clone + fmt::Debug + Sized + WasmNotSendSync + 'static {
 
     type AccelerationStructure: DynAccelerationStructure + 'static;
 }
+
+backend_map_type!(
+    adapter_options,
+    dyn wgt::BackendAdapterOptions,
+    AdapterOptionsType,
+    AdapterOptionsTypeAssignment,
+);
+
+backend_type!(
+    device_options,
+    wgt::BackendDeviceOptions,
+    DeviceOptionsType,
+    DeviceOptionsTypeAssignment,
+);
 
 pub trait Instance: Sized + WasmNotSendSync {
     type A: Api;

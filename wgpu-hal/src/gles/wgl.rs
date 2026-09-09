@@ -447,6 +447,13 @@ fn create_instance_device() -> Result<InstanceDevice, crate::InstanceError> {
     Ok(InstanceDevice { dc, _tx: drop_tx })
 }
 
+crate::adapter_options! {
+    /// Options for enumerating GL adapters.
+    #[backend(wgt::Backend::Gl)]
+    #[derive(Clone, Debug)]
+    pub struct GlAdapterOptions;
+}
+
 impl crate::Instance for Instance {
     type A = super::Api;
 

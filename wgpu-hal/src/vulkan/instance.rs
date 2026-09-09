@@ -1051,11 +1051,11 @@ impl Drop for super::InstanceShared {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct VulkanAdapterOptions;
-
-impl wgt::BackendMapValue<dyn wgt::BackendAdapterOptions> for VulkanAdapterOptions {
-    const BACKEND: wgt::Backend = wgt::Backend::Vulkan;
+crate::adapter_options! {
+    /// Options for enumerating Vulkan adapters.
+    #[backend(wgt::Backend::Vulkan)]
+    #[derive(Clone, Debug)]
+    pub struct VulkanAdapterOptions;
 }
 
 impl crate::Instance for super::Instance {
