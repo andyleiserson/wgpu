@@ -396,7 +396,7 @@ pub const fn is_crate_root(module_path: &str) -> bool {
 macro_rules! backend_map_type {
     (
         $macro:ident,
-        $value_ty:ty,
+        $map_ty:ty,
         $check_trait:ident,
         $check_struct:ident,
     ) => {
@@ -424,11 +424,11 @@ macro_rules! backend_map_type {
                 #[$attr]
                 $vis struct $inner_name $defn
 
-                impl wgt::BackendMapValue<$value_ty> for $inner_name {
+                impl wgt::BackendMapValue<$map_ty> for $inner_name {
                     const BACKEND: wgt::Backend = $backend;
                 }
 
-                impl wgt::DynBackendMapValue<$value_ty> for $inner_name { }
+                impl wgt::DynBackendMapValue<$map_ty> for $inner_name { }
 
                 impl crate::$check_trait for crate::$check_struct<{ $backend as usize }> { }
             };

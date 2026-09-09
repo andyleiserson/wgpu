@@ -362,10 +362,10 @@ impl Surface {
 pub struct VulkanSurfaceConfiguration {
     /// A caller-provided `pNext` chain to attach to the [`vk::SwapchainCreateInfoKHR`]
     /// of the swapchain created for this surface.
-    swapchain_create_chain: Option<PnextChain>,
+    pub swapchain_create_chain: Option<PnextChain>,
     /// Caller-provided flags to include in [`vk::SwapchainCreateFlagsKHR`] when
     /// creating the swapchain.
-    swapchain_create_flags: vk::SwapchainCreateFlagsKHR,
+    pub swapchain_create_flags: vk::SwapchainCreateFlagsKHR,
 }
 
 impl crate::RawSurfaceConfiguration for VulkanSurfaceConfiguration { }

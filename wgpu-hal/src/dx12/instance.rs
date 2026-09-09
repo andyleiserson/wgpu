@@ -18,7 +18,7 @@ crate::adapter_options! {
     pub struct Dx12AdapterOptions {
         /// LUID of the desired adapter. If `Some`, only the adapter with this LUID
         /// will be enumerated.
-        luid: Option<Foundation::LUID>,
+        pub luid: Option<Foundation::LUID>,
     }
 }
 
