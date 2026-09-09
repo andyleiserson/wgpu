@@ -1,17 +1,16 @@
 //! Vulkan Surface and Swapchain implementation using native Vulkan surfaces.
 
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use dyn_clone::clone_box;
 use core::any::Any;
 
 use ash::{khr, vk};
 use wgpu_sync::{Mutex, MutexGuard};
 
-use crate::vulkan::{
-    DeviceShared, InstanceShared, PnextChain, conv, map_host_device_oom_and_lost_err, semaphore_list::SemaphoreType, swapchain::{
+use crate::{RawSurfaceConfiguration, vulkan::{
+    DeviceShared, InstanceShared, PnextChain, VulkanSurfaceConfiguration, conv, map_host_device_oom_and_lost_err, semaphore_list::SemaphoreType, swapchain::{
         Surface, SurfaceTextureMetadata, Swapchain, SwapchainSubmissionSemaphoreGuard, WindowHandle,
     }
-};
+}};
 
 pub(crate) struct NativeSurface {
     raw: vk::SurfaceKHR,
@@ -181,24 +180,14 @@ impl Surface for NativeSurface {
         &self,
         device: &crate::vulkan::Device,
         config: &crate::SurfaceConfiguration,
+        raw_config: Option<Box<dyn RawSurfaceConfiguration>>,
         provided_old_swapchain: Option<Box<dyn Swapchain>>,
     ) -> Result<Box<dyn Swapchain>, crate::SurfaceError> {
         profiling::scope!("Device::create_swapchain");
 
-        let mut config = crate::SurfaceConfiguration::<crate::vulkan::VulkanSurfaceConfiguration> {
-            maximum_frame_latency: config.maximum_frame_latency,
-            present_mode: config.present_mode,
-            composite_alpha_mode: config.composite_alpha_mode,
-            format: config.format,
-            color_space: config.color_space,
-            extent: config.extent,
-            usage: config.usage,
-            view_formats: config.view_formats.clone(),
-            raw: config.raw.as_ref().map(|value| {
-                let cloned = clone_box(value.as_ref());
-                Box::<dyn Any>::downcast(cloned).unwrap()
-            }),
-        };
+        let mut raw_config = raw_config.map(|value| {
+            Box::<dyn Any>::downcast::<VulkanSurfaceConfiguration>(value).unwrap()
+        });
 
         let functor = khr::swapchain::Device::new(&self.instance.raw, &device.shared.raw);
 
@@ -210,7 +199,7 @@ impl Surface for NativeSurface {
         let color_space = conv::map_surface_color_space(config.color_space);
 
         let original_format = device.shared.private_caps.map_texture_format(config.format);
-        let mut raw_flags = config.raw
+        let mut raw_flags = raw_config
             .as_ref()
             .map_or(vk::SwapchainCreateFlagsKHR::empty(), |raw| raw.swapchain_create_flags);
         let mut raw_view_formats: Vec<vk::Format> = vec![];
@@ -249,15 +238,14 @@ impl Surface for NativeSurface {
             info = info.push_next(&mut format_list_info);
         }
 
-        if let Some(create_chain) = config
-            .raw
+        if let Some(create_chain) = raw_config
             .as_mut()
             .and_then(|raw| raw.swapchain_create_chain.take())
         {
             // TODO: update this safety comment
             // SAFETY: The contract on `Surface::set_next_swapchain_create_chain()` keeps
             // the chain valid and unaliased until this swapchain creation returns.
-            info.p_next = unsafe { PnextChain::new(create_chain).splice_into(info.p_next) };
+            info.p_next = unsafe { create_chain.splice_into(info.p_next) };
         }
 
         let result = {
@@ -321,7 +309,7 @@ impl Surface for NativeSurface {
             device: Arc::clone(&device.shared),
             images,
             fence,
-            config,
+            config: config.clone(),
             acquire_semaphores,
             next_acquire_index: 0,
             present_semaphores,
@@ -347,7 +335,7 @@ pub(crate) struct NativeSwapchain {
     images: Vec<vk::Image>,
     /// Fence used to wait on the acquired image.
     fence: Option<vk::Fence>,
-    config: crate::SurfaceConfiguration<crate::vulkan::VulkanSurfaceConfiguration>,
+    config: crate::SurfaceConfiguration,
 
     /// Semaphores used between image acquisition and the first submission
     /// that uses that image. This is indexed using [`next_acquire_index`].

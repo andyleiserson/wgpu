@@ -358,19 +358,17 @@ impl Surface {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct VulkanSurfaceConfiguration {
     /// A caller-provided `pNext` chain to attach to the [`vk::SwapchainCreateInfoKHR`]
     /// of the swapchain created for this surface.
-    swapchain_create_chain: Option<*mut c_void>,
+    swapchain_create_chain: Option<PnextChain>,
     /// Caller-provided flags to include in [`vk::SwapchainCreateFlagsKHR`] when
     /// creating the swapchain.
     swapchain_create_flags: vk::SwapchainCreateFlagsKHR,
 }
 
-// TODO: swapchain_create_chain becomes a PnextChain, which is Send/Sync, although I don't love this.
-unsafe impl Send for VulkanSurfaceConfiguration { }
-unsafe impl Sync for VulkanSurfaceConfiguration { }
+impl crate::RawSurfaceConfiguration for VulkanSurfaceConfiguration { }
 
 #[derive(Debug)]
 pub struct SurfaceTexture {

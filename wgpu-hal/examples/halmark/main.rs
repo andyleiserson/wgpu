@@ -159,10 +159,9 @@ impl<A: hal::Api> Example<A> {
             },
             usage: wgpu_types::TextureUses::COLOR_TARGET,
             view_formats: vec![],
-            raw: None,
         };
         unsafe {
-            surface.configure(&device, &surface_config).unwrap();
+            surface.configure(&device, &surface_config, None).unwrap();
         };
 
         let naga_shader = {

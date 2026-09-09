@@ -215,6 +215,7 @@ impl crate::Surface for Context {
         &self,
         device: &Context,
         config: &crate::SurfaceConfiguration,
+        _raw_config: Option<Box<dyn crate::RawSurfaceConfiguration>>,
     ) -> Result<(), crate::SurfaceError> {
         Ok(())
     }

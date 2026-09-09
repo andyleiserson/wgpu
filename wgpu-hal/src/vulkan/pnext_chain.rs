@@ -4,6 +4,7 @@ use ash::vk;
 
 /// A caller-provided `pNext` chain, stashed by one of the `set_next_*_chain`
 /// setters until the Vulkan call that consumes it.
+#[derive(Debug)]
 pub(crate) struct PnextChain(*mut vk::BaseOutStructure<'static>);
 
 // SAFETY: The pointer is only dereferenced at the Vulkan call that consumes the

@@ -973,7 +973,6 @@ impl Surface {
                             | wgt::TextureFormatFeatureFlags::STORAGE_READ_WRITE,
                     ),
                     view_formats: hal_view_formats,
-                    raw: raw_config,
                 };
 
                 if let Err(error) = crate::device::surface_config::validate_surface_configuration(
@@ -1027,7 +1026,7 @@ impl Surface {
                 // https://github.com/gfx-rs/wgpu/issues/4105
 
                 let surface_raw = self.raw(device.backend()).unwrap();
-                match unsafe { surface_raw.configure(device.raw(), &hal_config) } {
+                match unsafe { surface_raw.configure(device.raw(), &hal_config, raw_config) } {
                     Ok(()) => (),
                     Err(error) => {
                         break 'error match error {
