@@ -591,6 +591,7 @@ impl Surface for DxgiSurface {
         &self,
         device: &crate::vulkan::Device,
         config: &crate::SurfaceConfiguration,
+        raw_config: Option<Box<dyn crate::RawSurfaceConfiguration>>,
         provided_old_swapchain: Option<Box<dyn Swapchain>>,
     ) -> Result<Box<dyn Swapchain>, crate::SurfaceError> {
         profiling::scope!("DxgiSurface::create_swapchain");

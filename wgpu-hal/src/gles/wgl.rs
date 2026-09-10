@@ -3,7 +3,7 @@
     reason = "TODO: someone developing on Windows add Debug impls where possible"
 )]
 
-use alloc::{borrow::ToOwned as _, ffi::CString, string::String, sync::Arc, vec::Vec};
+use alloc::{borrow::ToOwned as _, boxed::Box, ffi::CString, string::String, sync::Arc, vec::Vec};
 use core::{
     ffi::{c_int, c_void, CStr},
     mem::{self, ManuallyDrop},
@@ -773,6 +773,7 @@ impl crate::Surface for Surface {
         &self,
         device: &super::Device,
         config: &crate::SurfaceConfiguration,
+        raw_config: Option<Box<dyn crate::RawSurfaceConfiguration>>,
     ) -> Result<(), crate::SurfaceError> {
         // Remove the old configuration.
         unsafe { self.unconfigure(device) };

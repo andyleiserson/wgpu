@@ -1142,6 +1142,7 @@ impl crate::Surface for Surface {
         &self,
         device: &Device,
         config: &crate::SurfaceConfiguration,
+        _raw_config: Option<alloc::boxed::Box<dyn crate::RawSurfaceConfiguration>>,
     ) -> Result<(), crate::SurfaceError> {
         // Only create the swapchain with the frame-latency waitable object when we will use
         // it, so `None` honors its documented "no waitable flag" behavior.
