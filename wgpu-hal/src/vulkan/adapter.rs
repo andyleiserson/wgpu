@@ -1114,6 +1114,8 @@ impl PhysicalDeviceFeatures {
                 || caps.supports_extension(khr::shader_non_semantic_info::NAME),
         );
 
+        features.insert(F::EXTERNAL_TEXTURE);
+
         (features, dl_flags)
     }
 }
