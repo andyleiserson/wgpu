@@ -76,7 +76,7 @@ OpMemberDecorate %21 0 Offset 0
 %20 = OpVariable  %22  Uniform
 %32 = OpTypeFunction %4 %17 %17 %17 %13
 %33 = OpConstant  %4  0
-%47 = OpTypeFunction %13 %14
+%48 = OpTypeFunction %13 %14
 %67 = OpTypeFunction %2
 %71 = OpTypePointer Uniform %14
 %31 = OpFunction  %4  None %32
@@ -106,23 +106,23 @@ OpBranch %44
 %45 = OpFunctionCall  %4  %31 %36 %38 %40 %42
 OpReturnValue %45
 OpFunctionEnd
-%46 = OpFunction  %13  None %47
-%48 = OpFunctionParameter  %14
+%46 = OpFunction  %13  None %48
+%47 = OpFunctionParameter  %14
 %49 = OpLabel
-%50 = OpCompositeExtract  %10  %48 0
-%51 = OpCompositeExtract  %8  %48 1
-%52 = OpCompositeExtract  %12  %48 2
-%53 = OpCompositeExtract  %12  %48 3
-%55 = OpCompositeExtract  %7  %48 4
-%56 = OpCompositeExtract  %7  %48 5
-%57 = OpCompositeExtract  %7  %48 6
+%50 = OpCompositeExtract  %10  %47 0
+%51 = OpCompositeExtract  %8  %47 1
+%52 = OpCompositeExtract  %12  %47 2
+%53 = OpCompositeExtract  %12  %47 3
+%55 = OpCompositeExtract  %7  %47 4
+%56 = OpCompositeExtract  %7  %47 5
+%57 = OpCompositeExtract  %7  %47 6
 %54 = OpCompositeConstruct  %6  %55 %56 %57
-%59 = OpCompositeExtract  %7  %48 7
-%60 = OpCompositeExtract  %7  %48 8
-%61 = OpCompositeExtract  %7  %48 9
+%59 = OpCompositeExtract  %7  %47 7
+%60 = OpCompositeExtract  %7  %47 8
+%61 = OpCompositeExtract  %7  %47 9
 %58 = OpCompositeConstruct  %6  %59 %60 %61
-%62 = OpCompositeExtract  %5  %48 10
-%63 = OpCompositeExtract  %4  %48 11
+%62 = OpCompositeExtract  %5  %47 10
+%63 = OpCompositeExtract  %4  %47 11
 %64 = OpCompositeConstruct  %13  %50 %51 %52 %53 %54 %58 %62 %63
 OpReturnValue %64
 OpFunctionEnd
